@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SerialPort } from 'serialport'
 import { Receiver } from "../interfaces/reciver.interface";
-import { receivers } from "../server";
+import { receivers } from '../server';
 
 
 export const newReceiver = async (req: Request, res: Response) => {
@@ -35,4 +35,14 @@ export const newReceiver = async (req: Request, res: Response) => {
     })
 
 
+}
+
+
+export const deleteReceiver = async (req: Request, res: Response) => {
+    // const { id } = req.params;
+
+    await receivers.deleteReceiver('devttyUSB1');
+    res.json({
+        msg: true
+    })
 }

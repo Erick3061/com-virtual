@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { newReceiver } from "../controllers/receiver.controller";
+import { deleteReceiver, newReceiver } from "../controllers/receiver.controller";
 
 const router = Router();
 
 router.post('/', newReceiver);
+router.get('/', deleteReceiver);
 
 
 export default router;

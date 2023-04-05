@@ -1,87 +1,67 @@
 import net, { Server, Socket } from 'net';
+import { Database } from 'sqlite3';
+import { StatusSender } from '../interfaces/reciver.interface';
+import { Sender } from './sender';
 
-
-export enum Status {
-    'start' = 1,
-    'stop' = 2,
-}
-
-export class SendServer {
+export class SendServer extends Sender {
 
     private server: Server | null = null;
-    private client: Socket | null = null;
     private port: number;
-    private status: Status = Status.stop;
+    private status: StatusSender;
 
-    constructor(port: number) {
+
+    constructor(db: Database, id: string, port: number, status: StatusSender = StatusSender.start) {
+        super(db, id);
         this.port = port;
+        this.status = status;
     }
 
     start() {
 
         this.server = net.createServer((socket) => {
-            if (this.client) {
+            if (this.getClient) {
                 console.log('ya existe un cliente conectado a este serv');
                 return;
             }
-            this.client = socket;
+            this.setClient = socket;
 
             socket.on('close', () => {
-                this.client = null;
+                this.setClient = null;
             });
 
         });
 
-        this.server.on('error', (err) => {
+        this.server.on('error', async (err) => {
+            this.status = StatusSender.stop;
+            await this.updateState(StatusSender.stop);
             console.log(err);
         });
 
-        this.server.listen(this.port, () => {
-            this.status = Status.start;
+        this.server.listen(this.port, async () => {
+            this.status = StatusSender.start;
+            await this.updateState(StatusSender.start);
             console.log('Serve inicializado');
         });
-    }
 
-    emit(data: string) {
-        this.client && this.client.write(data);
-    }
+        setTimeout(() => {
+            this.stop();
+        }, 10000);
 
-    private controllerAck() {
-        return new Promise<string>((resolve, reject) => {
-            this.client && this.client.once('data', data => {
-                console.log(data[0]);
-                if (data[0] !== 0x06) {
-                    return reject('');
-                }
-                return resolve('');
-            });
-        });
-    }
-
-    waitAck(interval: number) {
-        return Promise.race([
-            this.controllerAck(),
-            this.timeout(interval),
-        ])
     }
 
 
-    public get state(): Status {
+    public get state(): StatusSender {
         return this.status;
     }
 
 
-    private timeout(interval: number) {
-        return new Promise<void>((resolve, reject) => {
-            setTimeout(() => {
-                return reject();
-            }, interval);
-        })
-    }
-
     isValid() {
-        return (this.status === Status.start && this.client) ? true : false;
+        return (this.status === StatusSender.start && this.getClient) ? true : false;
     }
 
+    stop() {
+        this.getClient?.destroy();
+        this.server?.close();
+    }
 
 }

@@ -7,7 +7,19 @@ export enum Status {
     'error' = 3,
 }
 
-interface COM {
+export enum TypeSender {
+    'withOutServer' = 1,
+    'withServer' = 2,
+    'withClient' = 3,
+}
+
+export enum StatusSender {
+    'start' = 1,
+    'stop' = 2,
+    'connecting' = 3,
+}
+
+export interface COM {
     baudRate: number;
     path: string;
     dataBits: 5 | 6 | 7 | 8 | undefined;
@@ -27,5 +39,4 @@ export interface Receiver {
     intervalHeart: number;
     heartbeat: string;
     ack: string;
-    isServerSender: boolean;
 }

@@ -1,15 +1,12 @@
 import { AutoDetectTypes } from "@serialport/bindings-cpp";
 import { DelimiterParser, SerialPort, SerialPortOpenOptions } from "serialport";
-import sendClient, { Status as StatusClient } from './sendClient';
-import async from 'async';
+import sendClient from './sendClient';
+import async, { timeout } from 'async';
 import { CronJob } from 'cron';
 import sqlite from 'sqlite3';
 import path from 'path';
 import { SendServer } from "./sendServer";
 import { Status } from "../interfaces/reciver.interface";
-
-
-
 
 interface Qevent {
     id: number;
@@ -33,32 +30,28 @@ export default class Receiver {
 
     private h1: Date = new Date();
 
-    constructor(id: string, options: SerialPortOpenOptions<AutoDetectTypes>, delimiter: string, intervalHeart: number, heartbeat: string, attemp: number = 0, intervalAck: number = 1000) {
+    private cronHeartbeat: CronJob;
+
+    constructor(id: string, options: SerialPortOpenOptions<AutoDetectTypes>, delimiter: string, intervalHeart: number, heartbeat: string, DB: sqlite.Database, attemp: number = 0, intervalAck: number = 1000) {
         this.id = id;
         this.delimiter = delimiter;
         this.attempt = attemp;
         this.intervalHeart = intervalHeart;
         this.intervalAck = intervalAck;
         this.heartbeat = heartbeat;
-        this.DB = new sqlite.Database(path.join(__dirname, 'db.db'),
-            (err) => {
-                if (err) {
-                    console.log(`Fallo al crear la base de datos ${err}`);
-                    return;
+        this.DB = DB;
+        this.cronHeartbeat = new CronJob(
+            `*/${this.intervalHeart} * * * * *`,
+            () => {
+                console.log('entro cron ' + this.id, new Date().getTime() - this.h1.getTime());
+                if (new Date().getTime() - this.h1.getTime() > this.intervalHeart * 1000) {
+                    console.log('fallo');
+                    // server.io.emit('error ${}', 'Fallo');
+                    this.status = Status.error;
+                } else {
+                    this.status = Status.connect;
                 }
-                // this.DB.run('DROP TABLE ${id}');
-                this.DB.run(
-                    `
-                    CREATE TABLE IF NOT EXISTS ${this.id} (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT)
-                    `
-                    , (err) => {
-                        if (err) {
-                            console.log(err);
-                            return;
-                        }
-                    })
             });
-        this.init();
     }
 
 
@@ -67,34 +60,23 @@ export default class Receiver {
     }
 
 
-    private init() {
-        // this.port.on('close', () => this.status = Status.disconnect);
-        const cron = new CronJob(
-            `*/${this.intervalHeart} * * * * *`,
-            () => {
-                console.log('entro cron', new Date().getTime() - this.h1.getTime());
-                if (new Date().getTime() - this.h1.getTime() > this.intervalHeart * 1000) {
-                    console.log('fallo');
-                    // server.io.emit('error ${}', 'Fallo');
-                    this.status = Status.error;
-                } else {
-                    this.status = Status.connect;
-                }
-            },
-        );
-        cron.start();
+    async init() {
+        try {
+            await this.createTable();
+            this.cronHeartbeat.start();
+        } catch (error) {
+            console.log(error);
+        }
     }
 
     open() {
-        return true;
-        // return new Promise<string>((resolve, reject) => {
-        //     this.port.open((err) => {
-        //         if (err) {
-        //             return reject(err.message);
-        //         }
-        //         resolve('');
-        //     });
-        // });
+        return new Promise<boolean>((resolve, reject) => {
+            if (this.id === '') return reject(`Error en ${this.id}`);
+            this.emit();
+            this.load();
+            this.read();
+            resolve(true);
+        })
     }
 
     read() {
@@ -130,7 +112,7 @@ export default class Receiver {
     }
 
     createSender() {
-        this.clentClient = new SendServer(2020);
+        this.clentClient = new SendServer(this.DB, this.id, 2020);
         this.clentClient.start();
         // this.clentClient = new sendClient('127.0.0.1', 9292, 1);
         // this.clentClient.connect();
@@ -138,7 +120,7 @@ export default class Receiver {
 
     emit() {
         this.queue = async.queue(async (task, completed) => {
-            console.log(this.queue?.length() + '    ', task);
+
             if (this.queue?.length() === 0) {
                 // TODO reset autoinvrement
                 this.DB.run(`DELETE FROM sqlite_sequence WHERE name="${this.id}" `, (err) => {
@@ -192,5 +174,34 @@ export default class Receiver {
 
                 self.queue?.push({ id: this.lastID, event: event });
             });
+    }
+
+    delete() {
+        return new Promise<boolean>((resolve, reject) => {
+            this.DB.run(`DROP TABLE ${this.id}`,
+                (err) => {
+                    if (err) {
+                        return reject(err.message)
+                    }
+                    this.cronHeartbeat.stop();
+                    this.clentClient = null;
+                    return resolve(true);
+                });
+        });
+    }
+
+    private async createTable() {
+        return new Promise<boolean>((resolve, reject) => {
+            this.DB.run(
+                `
+                    CREATE TABLE IF NOT EXISTS ${this.id} (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT)
+                `
+                , (err) => {
+                    if (err) {
+                        return reject(err.message);
+                    }
+                    resolve(true);
+                });
+        });
     }
 }

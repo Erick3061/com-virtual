@@ -1,56 +1,63 @@
 import net from 'net';
-import { Sender } from '../interfaces/sender';
+import { Database } from 'sqlite3';
+import { StatusSender } from '../interfaces/reciver.interface';
+import { Sender } from './sender';
 
-export enum Status {
-    'connected' = 1,
-    'reconnect' = 2,
-    'disconnet' = 3,
-}
+export default class sendClient extends Sender {
 
-export default class sendClient {
 
-    private client: net.Socket | null = null;
     private ip: string;
     private port: number;
-    private attempts: number;
-    private status: Status = Status.disconnet;
+    private status: StatusSender;
 
-    constructor(ip: string, port: number, attempts: number = 3) {
+
+    constructor(db: Database, id: string, ip: string, port: number, status: StatusSender = StatusSender.connecting) {
+        super(db, id);
         this.ip = ip;
         this.port = port;
-        this.attempts = attempts;
+        this.status = status;
     }
 
     start() {
-        this.client = new net.Socket();
+        this.setClient = new net.Socket();
 
-        this.client.on('end', () => {
-            this.status = Status.disconnet;
+        this.getClient!.on('end', async () => {
+            this.status = StatusSender.stop;
+            await this.updateState(StatusSender.stop);
             console.log('end');
         });
 
-        this.client.on('error', (err) => {//si no esta conectado
+        this.getClient!.on('error', (err) => {//si no esta conectado
             console.log('se desconecto el serv');
         });
 
-        this.client.once('close', () => {//estaba encendido y se desconecto y no esta conectado
-            this.status = Status.disconnet;
-            this.reconnect();
+        this.getClient!.once('close', async () => {//estaba encendido y se desconecto y no esta conectado
+            if (this.status !== StatusSender.stop) {
+                if (this.status !== StatusSender.connecting) {
+                    await this.updateState(StatusSender.connecting);
+                }
+                this.status = StatusSender.connecting;
+                this.reconnect();
+            }
             console.log('Connection closed');
         });
 
-        this.client.on('connect', () => {
+        this.getClient!.on('connect', async () => {
             console.log('conectado');
-            this.status = Status.connected;
+            await this.updateState(StatusSender.start);
+            this.status = StatusSender.start;
         });
 
-        this.client.connect(this.port, this.ip);
+        this.getClient!.connect(this.port, this.ip);
 
+        setTimeout(() => {
+            this.stop();
+        }, 10000);
     }
 
     disconnect() {
-        if (this.client) {
-            this.client.destroy();
+        if (this.getClient) {
+            this.getClient.destroy();
         }
     }
 
@@ -63,47 +70,20 @@ export default class sendClient {
 
     }
 
-    emit(data: string) {
-        this.client && this.client.write(data);
-    }
-
-    private controllerAck() {
-
-        return new Promise<string>((resolve, reject) => {
-            this.client && this.client.once('data', data => {
-                console.log(data[0]);
-                if (data[0] !== 0x06) {
-                    return reject('');
-                }
-                return resolve('');
-            });
-        });
-    }
-
-    waitAck(interval: number) {
-        return Promise.race([
-            this.controllerAck(),
-            this.timeout(interval),
-        ])
-    }
-
-
-    public get state(): Status {
+    public get state(): StatusSender {
         return this.status;
     }
 
 
-    private timeout(interval: number) {
-        return new Promise<void>((resolve, reject) => {
-            setTimeout(() => {
-                return reject();
-            }, interval);
-        })
-    }
-
-
     isValid() {
-        return this.status === Status.connected;
+        return this.status === StatusSender.start;
     }
+
+    stop() {
+        this.getClient?.destroy();
+        this.status = StatusSender.stop;
+    }
+
+
 
 }
