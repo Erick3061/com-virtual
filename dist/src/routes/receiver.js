@@ -26,10 +26,7 @@ class ReceiverRouter {
             const rv = await this.recivers.newReciver({
                 ack,
                 attempt,
-                com: {
-                    baudRate: com.baudRate,
-                    path: com.path
-                },
+                com,
                 delimiter,
                 heartbeat, intervalAck, intervalHeart, status
             });
@@ -60,8 +57,4 @@ class ReceiverRouter {
     }
 }
 exports.ReceiverRouter = ReceiverRouter;
-// const router = Router();
-// router.post('/', newReceiver);
-// router.get('/', deleteReceiver);
-// export default router;
 //# sourceMappingURL=receiver.js.map

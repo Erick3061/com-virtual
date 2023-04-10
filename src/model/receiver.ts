@@ -133,6 +133,7 @@ export default class Receiver extends Serial {
                         return reject(err.message)
                     }
                     this.cronHeartbeat.stop();
+                    this.sender?.stop();
                     this.sender = null;
                     return resolve(true);
                 });

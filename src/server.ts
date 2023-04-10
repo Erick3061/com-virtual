@@ -1,10 +1,10 @@
-import express, { Application, Request } from 'express';
+import express, { Application } from 'express';
 import { createServer, Server as ServerHttp } from 'http';
-import { Socket, Server as SocketIoServer } from 'socket.io';
+import { Server as SocketIoServer } from 'socket.io';
 
 import cors from 'cors';
 import {ReceiverRouter} from './routes/receiver'
-import { Receivers } from './model/receivers';
+import { Receivers } from './controllers/receiver.controller';
 
 
 class Server {
@@ -76,12 +76,6 @@ class Server {
         const router = new ReceiverRouter(receivers);
         this.app.use('/receiver', router.router);
     }
-
-
-    // public get io(): SocketIoServer {
-    //     return this.Io;
-    // }
-
 }
 
 export default Server;

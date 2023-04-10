@@ -8,7 +8,7 @@ const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const cors_1 = __importDefault(require("cors"));
 const receiver_1 = require("./routes/receiver");
-const receivers_1 = require("./model/receivers");
+const receiver_controller_1 = require("./controllers/receiver.controller");
 class Server {
     constructor() {
         this.app = (0, express_1.default)();
@@ -31,7 +31,7 @@ class Server {
     }
     initialSokcet() {
         this.io.on('connection', client => {
-            const receivers = receivers_1.Receivers.getInstance(this.io);
+            const receivers = receiver_controller_1.Receivers.getInstance(this.io);
             client.emit('all', receivers.getAll());
             console.log('Cliente conectado');
             console.log(client.id);
@@ -50,7 +50,7 @@ class Server {
     }
     routes() {
         // Router and controller
-        const receivers = receivers_1.Receivers.getInstance(this.io);
+        const receivers = receiver_controller_1.Receivers.getInstance(this.io);
         const router = new receiver_1.ReceiverRouter(receivers);
         this.app.use('/receiver', router.router);
     }

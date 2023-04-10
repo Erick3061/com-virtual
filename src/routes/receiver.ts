@@ -3,7 +3,8 @@ import { Router, Response, Request } from "express";
 import { plainToClass } from "class-transformer";
 import { ReceiverData } from "../validation/receiver";
 import { ValidationError, validate } from "class-validator";
-import { Receivers } from '../model/receivers';
+import { Receivers } from '../controllers/receiver.controller';
+import {Receiver as ReceiverInterface} from '../interfaces/reciver.interface'
 
 
 
@@ -32,16 +33,12 @@ export class ReceiverRouter {
             }
 
             const {ack,attempt, com, delimiter, heartbeat,intervalAck, intervalHeart, isServerSender, status} = receiver;
-            
 
             const rv = await this.recivers.newReciver({
                 ack,
                 attempt, 
-                com: {
-                    baudRate: com.baudRate, 
-                    path: com.path
-                }, 
-                delimiter, 
+                com, 
+                delimiter,
                 heartbeat, intervalAck,intervalHeart, status
             });
 
@@ -75,12 +72,3 @@ export class ReceiverRouter {
         }
     }
 }
-
-
-// const router = Router();
-
-// router.post('/', newReceiver);
-// router.get('/', deleteReceiver);
-
-
-// export default router;

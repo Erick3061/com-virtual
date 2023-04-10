@@ -1,5 +1,3 @@
-import { SerialPortOpenOptions } from 'serialport';
-import { AutoDetectTypes } from '@serialport/bindings-cpp';
 
 export enum Status {
     'connect' = 1,

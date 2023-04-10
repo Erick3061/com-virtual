@@ -52,38 +52,38 @@ export class Serial {
         this.parser = this.port.pipe(new DelimiterParser({ delimiter: Buffer.from(this.delimiter, 'hex') }));
     }
 
-    get getPort() {
+    protected get getPort() {
         return this.port;
     }
-    get getParser() {
+    protected get getParser() {
         return this.parser;
     }
 
-    get getDelimiter() {
+    protected get getDelimiter() {
         return this.delimiter;
     }
-    get getBaudRate() {
+    protected get getBaudRate() {
         return this.baudRate;
     }
-    get getPath() {
+    protected get getPath() {
         return this.path;
     }
-    get getDataBits() {
+    protected get getDataBits() {
         return this.dataBits;
     }
-    get getHighWaterMark() {
+    protected get getHighWaterMark() {
         return this.highWaterMark;
     }
-    get getParity() {
+    protected get getParity() {
         return this.parity;
     }
-    get getRtscts() {
+    protected get getRtscts() {
         return this.rtscts;
     }
-    get getRtsMode() {
+    protected get getRtsMode() {
         return this.rtsMode;
     }
-    get getStopBits() {
+    protected get getStopBits() {
         return this.stopBits;
     }
 

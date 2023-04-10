@@ -1,4 +1,4 @@
-import net, { Server, Socket } from 'net';
+import net, { Server } from 'net';
 import { Database } from 'sqlite3';
 import { StatusSender } from '../interfaces/reciver.interface';
 import { Sender } from './sender';

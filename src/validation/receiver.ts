@@ -42,7 +42,7 @@ class COM{
 
     @IsIn([5,6,7,8])
     @IsOptional()
-    public databits?: number;
+    public databits?: 5 | 6 | 7 | 8;
 
     @IsInt()
     @IsOptional()
@@ -50,7 +50,7 @@ class COM{
 
     @IsIn(["none", "even", "odd", "mark", "space"])
     @IsOptional()
-    public parity?: string;
+    public parity?: "none" | "even" | "odd" | "mark" | "space";
 
     @IsBoolean()
     @IsOptional()
@@ -58,10 +58,10 @@ class COM{
 
     @IsIn(["handshake", "enable", "toggle"])
     @IsOptional()
-    public rtsMode?: string;
+    public rtsMode?: "handshake" | "enable" | "toggle";
 
     @IsIn([1,2,1.5])
-    public stopBits?: number;
+    public stopBits?: 1 | 2 | 1.5;
 
 
 }

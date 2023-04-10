@@ -100,6 +100,7 @@ class Receiver extends serial_1.Serial {
                     return reject(err.message);
                 }
                 this.cronHeartbeat.stop();
+                this.sender?.stop();
                 this.sender = null;
                 return resolve(true);
             });
