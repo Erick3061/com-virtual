@@ -3,14 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.receivers = void 0;
 const express_1 = __importDefault(require("express"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const cors_1 = __importDefault(require("cors"));
-const receiver_1 = __importDefault(require("./routes/receiver"));
+const receiver_1 = require("./routes/receiver");
 const receivers_1 = require("./model/receivers");
-exports.receivers = new receivers_1.Receivers();
 class Server {
     constructor() {
         this.app = (0, express_1.default)();
@@ -22,6 +20,7 @@ class Server {
     listen() {
         this.middlewares();
         this.routes();
+        this.initialSokcet();
         this.server.listen(4000, () => {
             console.log(`Server on port ${4000}`);
         });
@@ -29,14 +28,11 @@ class Server {
     middlewares() {
         this.app.use((0, cors_1.default)());
         this.app.use(express_1.default.json());
-        this.app.use((req, res, next) => {
-            // @ts-ignore
-            req.io = this.io;
-            next();
-        });
     }
     initialSokcet() {
         this.io.on('connection', client => {
+            const receivers = receivers_1.Receivers.getInstance(this.io);
+            client.emit('all', receivers.getAll());
             console.log('Cliente conectado');
             console.log(client.id);
             client.on('disconnect', () => {
@@ -53,16 +49,10 @@ class Server {
         });
     }
     routes() {
-        this.app.use('/receiver', receiver_1.default);
-        // this.app.post('/new', (req, res) => {
-        //     const { id } = req.query;
-        //     // console.log(req.query);
-        //     const algo = new Example(this.io, id as string);
-        //     this.recibers = [...this.recibers, algo];
-        //     res.json({
-        //         msg: 'server created'
-        //     })
-        // })
+        // Router and controller
+        const receivers = receivers_1.Receivers.getInstance(this.io);
+        const router = new receiver_1.ReceiverRouter(receivers);
+        this.app.use('/receiver', router.router);
     }
 }
 exports.default = Server;

@@ -1,45 +1,62 @@
-import { AutoDetectTypes } from "@serialport/bindings-cpp";
-import { DelimiterParser, SerialPort, SerialPortOpenOptions } from "serialport";
-import sendClient from './sendClient';
-import async, { timeout } from 'async';
-import { CronJob } from 'cron';
-import sqlite from 'sqlite3';
-import path from 'path';
+import { CronJob } from "cron";
+import { COM, Status, StatusSender, TypeSender } from "../interfaces/reciver.interface";
+import SendClient from "./sendClient";
 import { SendServer } from "./sendServer";
-import { Status } from "../interfaces/reciver.interface";
+import { Serial } from "./serial";
+import sqlite from 'sqlite3';
+import { Socket } from "socket.io";
+import async from 'async';
+
 
 interface Qevent {
     id: number;
     event: string;
 }
 
-export default class Receiver {
+class Receiver extends Serial {
 
-    private delimiter: string;
-    private status: Status = Status.disconnect;
-    private clentClient: SendServer | sendClient | null = null;
-    // private clentServer: SendServer | null = null;
-    private queue: async.QueueObject<Qevent> | null = null;
     private attempt: number;
+    private sender: SendServer | SendClient | null = null;
+    private cronHeartbeat: CronJob;
+    private DB: sqlite.Database;
+    private h1: Date = new Date();
+    private heartbeat: string;
+    private id: string;
     private intervalAck: number;
     private intervalHeart: number;
-    // private lastindex: number = 0;
-    private heartbeat: string;
-    private DB: sqlite.Database;
-    private id: string;
+    private queue: async.QueueObject<Qevent> | null = null;
+    private status: Status = Status.disconnect;
+    private type: TypeSender = TypeSender.withOutServer;
+    private ack: string;
+    private io: Socket;
 
-    private h1: Date = new Date();
-
-    private cronHeartbeat: CronJob;
-
-    constructor(id: string, options: SerialPortOpenOptions<AutoDetectTypes>, delimiter: string, intervalHeart: number, heartbeat: string, DB: sqlite.Database, attemp: number = 0, intervalAck: number = 1000) {
-        this.id = id;
-        this.delimiter = delimiter;
-        this.attempt = attemp;
+    constructor(
+        // * logica
+        intervalHeart: number,
+        DB: sqlite.Database,
+        heartbeat: string,
+        type: TypeSender,
+        ack: string,
+        io: Socket,
+        // * Serialport
+        delimiter: string,
+        options: COM,
+        // Opcinales
+        attempt: number = 0,
+        intervalAck: number = 1000
+    ){
+        const {baudRate,dataBits,highWaterMark,parity,path,rtsMode,rtscts,stopBits} = options;
+        super(delimiter, baudRate, path, dataBits, highWaterMark, parity, rtscts, rtsMode, stopBits);
+        this.id = path.replaceAll('/', '');
+        this.attempt = attempt;
         this.intervalHeart = intervalHeart;
-        this.intervalAck = intervalAck;
-        this.heartbeat = heartbeat;
         this.DB = DB;
+        this.heartbeat = heartbeat;
+        this.intervalAck = intervalAck;
+        this.type = type;
+        this.ack = ack;
+        this.io = io;
+
         this.cronHeartbeat = new CronJob(
             `*/${this.intervalHeart} * * * * *`,
             () => {
@@ -51,142 +68,27 @@ export default class Receiver {
                 } else {
                     this.status = Status.connect;
                 }
-            });
-    }
-
-
-    public get getId(): string {
-        return this.id;
-    }
-
-
-    async init() {
-        try {
-            await this.createTable();
-            this.cronHeartbeat.start();
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
-    open() {
-        return new Promise<boolean>((resolve, reject) => {
-            if (this.id === '') return reject(`Error en ${this.id}`);
-            this.emit();
-            this.load();
-            this.read();
-            resolve(true);
-        })
-    }
-
-    read() {
-
-        const cron = new CronJob(
-            `*/15 * * * * *`,
-            () => {
-                this.h1 = new Date();
-                this.insertData(new Date().toString());
-
-            },
+            }
         );
-        cron.start();
 
     }
 
     close() {
-        return true;
-    }
-
-    load() {
-
-        // data.forEach((dt, idx) => this.queue?.push({ id: idx, event: dt }));
-        this.DB.all(`SELECT * FROM ${this.id}`, (err, rows: Array<Qevent>) => {
-            if (err) {
-                console.log(err);
-                return;
-            }
-
-            rows.forEach(({ id, event }) => this.queue?.push({ id, event }));
-
-        });
-    }
-
-    createSender() {
-        this.clentClient = new SendServer(this.DB, this.id, 2020);
-        this.clentClient.start();
-        // this.clentClient = new sendClient('127.0.0.1', 9292, 1);
-        // this.clentClient.connect();
-    }
-
-    emit() {
-        this.queue = async.queue(async (task, completed) => {
-
-            if (this.queue?.length() === 0) {
-                // TODO reset autoinvrement
-                this.DB.run(`DELETE FROM sqlite_sequence WHERE name="${this.id}" `, (err) => {
-                    err && console.log(err);
-                });
-            }
-            try {
-                if (this.clentClient) {
-
-                    if (this.attempt < 3) {
-                        // Emitir
-                        this.clentClient.emit(task.event);
-                        // Esperar ack
-                        await this.clentClient.waitAck(this.intervalAck);
-                        // Completar
-                        this.DB.run(`DELETE FROM ${this.id} WHERE id=${task.id}`,
-                            (err) => {
-                                err && console.log(err);
-                            });
-                        completed(null);
-                    } else {
-                        if (this.clentClient.isValid()) {
-                            this.attempt = 0;
-                        }
-                        throw '';
-                    }
-                }
-            } catch (err) {
-                this.attempt++;
-                // TODO verificar tiempos
-                setTimeout(() => {
-                    if (this.queue) {
-                        this.queue.unshift(task);
-                        completed(null);
-                    }
-                }, 1000)
-            }
-
-        }, 1);
-    }
-    ///Metodos db
-    insertData(event: string) {
-        const self = this;
-        this.DB.run(`
-            INSERT INTO ${this.id} (event) VALUES ("${event}");
-        `,
-            function (this, err) {
-                if (err) {
-                    return;
-                }
-
-                self.queue?.push({ id: this.lastID, event: event });
-            });
-    }
-
-    delete() {
         return new Promise<boolean>((resolve, reject) => {
-            this.DB.run(`DROP TABLE ${this.id}`,
-                (err) => {
-                    if (err) {
-                        return reject(err.message)
+            this.getPort.close(err => {
+                if (err) {
+                    console.log(err);
+                    return reject(err.message);
+                }
+                this.DB.run(`UPDATE Receiver set status = 2 WHERE id = "${this.id}"`, (err) => {
+                    if(err){
+                        return reject(err.message);
                     }
-                    this.cronHeartbeat.stop();
-                    this.clentClient = null;
-                    return resolve(true);
-                });
+                    resolve(true);
+                    if (this.sender) this.sender.stop();
+                    this.io.emit(`close-${this.id}`, {});
+                })
+            });
         });
     }
 
@@ -204,4 +106,148 @@ export default class Receiver {
                 });
         });
     }
+
+    createSender(typeSender: TypeSender, ip: string, port: number, status: StatusSender) {
+        if (typeSender === TypeSender.withServer) {
+            console.log('Server');
+            this.sender = new SendServer(this.DB, this.id, port, status);
+            if (status === StatusSender.start) this.sender.start();
+        } else {
+            console.log('Client');
+            this.sender = new SendClient(this.DB, this.id, ip, port, status);
+            if (status !== StatusSender.stop) this.sender.start();
+        }
+    }
+
+    delete() {
+        return new Promise<boolean>((resolve, reject) => {
+            this.DB.run(`DROP TABLE ${this.id}`,
+                (err) => {
+                    if (err) {
+                        return reject(err.message)
+                    }
+                    this.cronHeartbeat.stop();
+                    this.sender = null;
+                    return resolve(true);
+                });
+        });
+    }
+
+    emit() {
+        this.queue = async.queue(async (task, completed) => {
+            // console.log(this.queue?.length() + '    ', task);
+            if (this.queue?.length() === 0) {
+                // TODO reset autoinvrement
+                this.DB.run(`DELETE FROM sqlite_sequence WHERE name="${this.id}" `, (err) => {
+                    err && console.log(err);
+                });
+            }
+            try {
+                if (this.sender) {
+
+                    if (this.attempt < 3) {
+                        // Emitir
+                        this.sender.emit(task.event);
+                        // Esperar ack
+                        await this.sender.waitAck(this.intervalAck);
+                        // Completar
+                        this.DB.run(`DELETE FROM ${this.id} WHERE id=${task.id}`,
+                            (err) => {
+                                err && console.log(err);
+                            });
+                        completed;
+                    } else {
+                        if (this.sender.isValid()) {
+                            this.attempt = 0;
+                        }
+                        throw '';
+                    }
+                }
+            } catch (err) {
+                this.attempt++;
+                // TODO verificar tiempos
+                setTimeout(() => {
+                    if (this.queue) {
+                        this.queue.unshift(task);
+                        completed;
+                    }
+                }, 1000)
+            }
+
+        }, 1);
+    }
+
+    async init() {
+        try {
+            this.getPort.on('close', () => this.status = Status.disconnect);
+            await this.createTable();
+            this.cronHeartbeat.start();
+            this.emit();
+            this.load();
+            this.read();
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    insertData(event: string) {
+        const self = this;
+        this.DB.run(`
+            INSERT INTO ${this.id} (event) VALUES ("${event}");
+        `,
+            function (this, err) {
+                if (err) {
+                    return;
+                }
+
+                self.queue?.push({ id: this.lastID, event: event });
+            });
+    }
+
+    load() {
+        this.DB.all(`SELECT * FROM ${this.id}`, (err, rows: Array<Qevent>) => {
+            if (err) {
+                console.log(err);
+                return;
+            }
+            rows.forEach(({ id, event }) => this.queue?.push({ id, event }));
+        });
+    }
+
+    read() {
+        this.getParser.on('data', (data: any) => {
+            console.log(data.toString());
+            this.h1 = new Date();
+            if (!data.toString().includes(this.heartbeat)) {
+                this.insertData(data.toString());
+            }
+            this.getPort.write(Buffer.from(this.ack, 'hex'));
+        });
+    }
+
+    getInformation() {
+        return {
+            attempt: this.attempt,
+            sender: this.sender,
+            delimiter: this.getDelimiter,
+            heartbeat: this.heartbeat,
+            id: this.id,
+            intervalAck: this.intervalAck,
+            intervalHeart: this.intervalHeart,
+            status: this.status,
+            type: this.type,
+            ack: this.ack,
+            baudRate: this.getBaudRate,
+            path: this.getPath,
+            dataBits: this.getDataBits,
+            highWaterMark: this.getHighWaterMark,
+            parity: this.getParity,
+            rtscts: this.getRtscts,
+            rtsMode: this.getRtsMode,
+            stopBits: this.getStopBits,
+        }
+    }
+
+
+
 }

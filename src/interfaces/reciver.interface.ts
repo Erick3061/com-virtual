@@ -22,12 +22,12 @@ export enum StatusSender {
 export interface COM {
     baudRate: number;
     path: string;
-    dataBits: 5 | 6 | 7 | 8 | undefined;
-    highWaterMark: number | undefined;
-    parity: "none" | "even" | "odd" | "mark" | "space" | undefined;
-    rtscts: boolean;
-    rtsMode: "handshake" | "enable" | "toggle" | undefined;
-    stopBits: 1 | 2 | 1.5 | undefined;
+    dataBits?: 5 | 6 | 7 | 8;
+    highWaterMark?: number;
+    parity?: "none" | "even" | "odd" | "mark" | "space";
+    rtscts?: boolean;
+    rtsMode?: "handshake" | "enable" | "toggle";
+    stopBits?: 1 | 2 | 1.5;
 }
 
 export interface Receiver {

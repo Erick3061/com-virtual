@@ -3,11 +3,9 @@ import { createServer, Server as ServerHttp } from 'http';
 import { Socket, Server as SocketIoServer } from 'socket.io';
 
 import cors from 'cors';
-import receiverRoutes from './routes/receiver'
+import {ReceiverRouter} from './routes/receiver'
 import { Receivers } from './model/receivers';
 
-
-export const receivers = new Receivers();
 
 class Server {
 
@@ -27,6 +25,7 @@ class Server {
     listen() {
         this.middlewares();
         this.routes();
+        this.initialSokcet();
         this.server.listen(4000, () => {
             console.log(`Server on port ${4000}`);
         });
@@ -35,18 +34,19 @@ class Server {
     middlewares() {
         this.app.use(cors());
         this.app.use(express.json());
-        this.app.use((req: Request, res, next) => {
-            // @ts-ignore
-            req.io = this.io;
-            next();
-        })
     }
 
 
 
     initialSokcet() {
 
+        
         this.io.on('connection', client => {
+
+            const receivers = Receivers.getInstance(this.io);
+
+            client.emit('all', receivers.getAll());
+
 
             console.log('Cliente conectado');
             console.log(client.id);
@@ -71,18 +71,10 @@ class Server {
     }
 
     routes() {
-        this.app.use('/receiver', receiverRoutes);
-        // this.app.post('/new', (req, res) => {
-
-        //     const { id } = req.query;
-        //     // console.log(req.query);
-
-        //     const algo = new Example(this.io, id as string);
-        //     this.recibers = [...this.recibers, algo];
-        //     res.json({
-        //         msg: 'server created'
-        //     })
-        // })
+        // Router and controller
+        const receivers = Receivers.getInstance(this.io);
+        const router = new ReceiverRouter(receivers);
+        this.app.use('/receiver', router.router);
     }
 
 

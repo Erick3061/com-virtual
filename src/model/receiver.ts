@@ -1,79 +1,99 @@
-import { AutoDetectTypes } from "@serialport/bindings-cpp";
-import { DelimiterParser, SerialPort, SerialPortOpenOptions } from "serialport";
-import SendClient from './sendClient';
-import async from 'async';
-import { CronJob } from 'cron';
-import sqlite from 'sqlite3';
-import path from 'path';
+import { CronJob } from "cron";
+import { COM, Status, StatusSender, TypeSender } from "../interfaces/reciver.interface";
+import SendClient from "./sendClient";
 import { SendServer } from "./sendServer";
-import { Status, StatusSender, TypeSender } from "../interfaces/reciver.interface";
+import { Serial } from "./serial";
+import sqlite from 'sqlite3';
+import { Server as SocketIoServer } from 'socket.io';
+
+import async from 'async';
+
 
 interface Qevent {
     id: number;
     event: string;
 }
 
-export default class Receiver {
+export default class Receiver extends Serial {
 
     private attempt: number;
     private sender: SendServer | SendClient | null = null;
     private cronHeartbeat: CronJob;
     private DB: sqlite.Database;
-    private delimiter: string;
     private h1: Date = new Date();
     private heartbeat: string;
     private id: string;
     private intervalAck: number;
     private intervalHeart: number;
-    private parser: any;
-    private port: SerialPort;
     private queue: async.QueueObject<Qevent> | null = null;
     private status: Status = Status.disconnect;
     private type: TypeSender = TypeSender.withOutServer;
     private ack: string;
+    private io: SocketIoServer;
 
-
-    constructor(id: string, options: SerialPortOpenOptions<AutoDetectTypes>, delimiter: string, intervalHeart: number, heartbeat: string, DB: sqlite.Database, type: TypeSender, ack: string, attemp: number = 0, intervalAck: number = 1000) {
-        this.port = new SerialPort({ ...options, autoOpen: false });
-        this.id = id;
-        this.delimiter = delimiter;
-        this.attempt = attemp;
+    constructor(
+        // * logica
+        intervalHeart: number,
+        DB: sqlite.Database,
+        heartbeat: string,
+        type: TypeSender,
+        ack: string,
+        io: SocketIoServer,
+        // * Serialport
+        delimiter: string,
+        options: COM,
+        // Opcinales
+        attempt: number = 0,
+        intervalAck: number = 1000
+    ) {
+        const { baudRate, dataBits, highWaterMark, parity, path, rtsMode, rtscts, stopBits } = options;
+        super(delimiter, baudRate, path, dataBits, highWaterMark, parity, rtscts, rtsMode, stopBits);
+        this.id = path.replaceAll('/', '');
+        this.attempt = attempt;
         this.intervalHeart = intervalHeart;
-        this.intervalAck = intervalAck;
-        this.heartbeat = heartbeat;
-        this.parser = this.port.pipe(new DelimiterParser({ delimiter: Buffer.from(this.delimiter, 'hex') }));
         this.DB = DB;
+        this.heartbeat = heartbeat;
+        this.intervalAck = intervalAck;
         this.type = type;
         this.ack = ack;
+        this.io = io;
+
         this.cronHeartbeat = new CronJob(
             `*/${this.intervalHeart} * * * * *`,
             () => {
                 console.log('entro cron ' + this.id, new Date().getTime() - this.h1.getTime());
                 if (new Date().getTime() - this.h1.getTime() > this.intervalHeart * 1000) {
                     console.log('fallo');
-                    // server.io.emit('error ${}', 'Fallo');
+                    this.io.emit('data', 'se desconecto');
                     this.status = Status.error;
                 } else {
                     this.status = Status.connect;
                 }
-            });
+            }
+        );
+
     }
 
-    public get getId(): string {
+    
+    public get getId() : string {
         return this.id;
     }
-
+    
     close() {
-        // TODO actualizar en bd
-        return new Promise<string>((resolve, reject) => {
-            this.port.close(err => {
+        return new Promise<boolean>((resolve, reject) => {
+            this.getPort.close(err => {
                 if (err) {
                     console.log(err);
-
                     return reject(err.message);
                 }
-                // if (this.sender) this.sender.disconnect();
-                resolve('algo');
+                this.DB.run(`UPDATE Receiver set status = 2 WHERE id = "${this.id}"`, (err) => {
+                    if (err) {
+                        return reject(err.message);
+                    }
+                    resolve(true);
+                    if (this.sender) this.sender.stop();
+                    // this.io.emit(`close-${this.id}`, {});
+                })
             });
         });
     }
@@ -165,7 +185,7 @@ export default class Receiver {
 
     async init() {
         try {
-            this.port.on('close', () => this.status = Status.disconnect);
+            this.getPort.on('close', () => this.status = Status.disconnect);
             await this.createTable();
             this.cronHeartbeat.start();
             this.emit();
@@ -200,24 +220,44 @@ export default class Receiver {
         });
     }
 
-    open() {
-        return new Promise<boolean>((resolve, reject) => {
-            this.port.open((err) => {
-                if (err) return reject(err.message);
-
-                resolve(true);
-            });
-        });
-    }
-
     read() {
-        this.parser.on('data', (data: any) => {
+        this.getParser.on('data', (data: any) => {
             console.log(data.toString());
             this.h1 = new Date();
             if (!data.toString().includes(this.heartbeat)) {
+                this.io.emit("data", {
+                    id: this.id,
+                    event: data.toString()
+                });
                 this.insertData(data.toString());
             }
-            this.port.write(Buffer.from(this.ack, 'hex'));
+            this.getPort.write(Buffer.from(this.ack, 'hex'));
         });
     }
+
+    getInformation() {
+        return {
+            attempt: this.attempt,
+            sender: this.sender,
+            delimiter: this.getDelimiter,
+            heartbeat: this.heartbeat,
+            id: this.id,
+            intervalAck: this.intervalAck,
+            intervalHeart: this.intervalHeart,
+            status: this.status,
+            type: this.type,
+            ack: this.ack,
+            baudRate: this.getBaudRate,
+            path: this.getPath,
+            dataBits: this.getDataBits,
+            highWaterMark: this.getHighWaterMark,
+            parity: this.getParity,
+            rtscts: this.getRtscts,
+            rtsMode: this.getRtsMode,
+            stopBits: this.getStopBits,
+        }
+    }
+
+
+
 }

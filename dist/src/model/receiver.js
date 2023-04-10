@@ -3,35 +3,41 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const serialport_1 = require("serialport");
-const sendClient_1 = __importDefault(require("./sendClient"));
-const async_1 = __importDefault(require("async"));
 const cron_1 = require("cron");
-const sendServer_1 = require("./sendServer");
 const reciver_interface_1 = require("../interfaces/reciver.interface");
-class Receiver {
-    constructor(id, options, delimiter, intervalHeart, heartbeat, DB, type, ack, attemp = 0, intervalAck = 1000) {
+const sendClient_1 = __importDefault(require("./sendClient"));
+const sendServer_1 = require("./sendServer");
+const serial_1 = require("./serial");
+const async_1 = __importDefault(require("async"));
+class Receiver extends serial_1.Serial {
+    constructor(
+    // * logica
+    intervalHeart, DB, heartbeat, type, ack, io, 
+    // * Serialport
+    delimiter, options, 
+    // Opcinales
+    attempt = 0, intervalAck = 1000) {
+        const { baudRate, dataBits, highWaterMark, parity, path, rtsMode, rtscts, stopBits } = options;
+        super(delimiter, baudRate, path, dataBits, highWaterMark, parity, rtscts, rtsMode, stopBits);
         this.sender = null;
         this.h1 = new Date();
         this.queue = null;
         this.status = reciver_interface_1.Status.disconnect;
         this.type = reciver_interface_1.TypeSender.withOutServer;
-        this.port = new serialport_1.SerialPort({ ...options, autoOpen: false });
-        this.id = id;
-        this.delimiter = delimiter;
-        this.attempt = attemp;
+        this.id = path.replaceAll('/', '');
+        this.attempt = attempt;
         this.intervalHeart = intervalHeart;
-        this.intervalAck = intervalAck;
-        this.heartbeat = heartbeat;
-        this.parser = this.port.pipe(new serialport_1.DelimiterParser({ delimiter: Buffer.from(this.delimiter, 'hex') }));
         this.DB = DB;
+        this.heartbeat = heartbeat;
+        this.intervalAck = intervalAck;
         this.type = type;
         this.ack = ack;
+        this.io = io;
         this.cronHeartbeat = new cron_1.CronJob(`*/${this.intervalHeart} * * * * *`, () => {
             console.log('entro cron ' + this.id, new Date().getTime() - this.h1.getTime());
             if (new Date().getTime() - this.h1.getTime() > this.intervalHeart * 1000) {
                 console.log('fallo');
-                // server.io.emit('error ${}', 'Fallo');
+                this.io.emit('data', 'se desconecto');
                 this.status = reciver_interface_1.Status.error;
             }
             else {
@@ -43,15 +49,21 @@ class Receiver {
         return this.id;
     }
     close() {
-        // TODO actualizar en bd
         return new Promise((resolve, reject) => {
-            this.port.close(err => {
+            this.getPort.close(err => {
                 if (err) {
                     console.log(err);
                     return reject(err.message);
                 }
-                // if (this.sender) this.sender.disconnect();
-                resolve('algo');
+                this.DB.run(`UPDATE Receiver set status = 2 WHERE id = "${this.id}"`, (err) => {
+                    if (err) {
+                        return reject(err.message);
+                    }
+                    resolve(true);
+                    if (this.sender)
+                        this.sender.stop();
+                    // this.io.emit(`close-${this.id}`, {});
+                });
             });
         });
     }
@@ -137,7 +149,7 @@ class Receiver {
     }
     async init() {
         try {
-            this.port.on('close', () => this.status = reciver_interface_1.Status.disconnect);
+            this.getPort.on('close', () => this.status = reciver_interface_1.Status.disconnect);
             await this.createTable();
             this.cronHeartbeat.start();
             this.emit();
@@ -168,24 +180,41 @@ class Receiver {
             rows.forEach(({ id, event }) => this.queue?.push({ id, event }));
         });
     }
-    open() {
-        return new Promise((resolve, reject) => {
-            this.port.open((err) => {
-                if (err)
-                    return reject(err.message);
-                resolve(true);
-            });
-        });
-    }
     read() {
-        this.parser.on('data', (data) => {
+        this.getParser.on('data', (data) => {
             console.log(data.toString());
             this.h1 = new Date();
             if (!data.toString().includes(this.heartbeat)) {
+                this.io.emit("data", {
+                    id: this.id,
+                    event: data.toString()
+                });
                 this.insertData(data.toString());
             }
-            this.port.write(Buffer.from(this.ack, 'hex'));
+            this.getPort.write(Buffer.from(this.ack, 'hex'));
         });
+    }
+    getInformation() {
+        return {
+            attempt: this.attempt,
+            sender: this.sender,
+            delimiter: this.getDelimiter,
+            heartbeat: this.heartbeat,
+            id: this.id,
+            intervalAck: this.intervalAck,
+            intervalHeart: this.intervalHeart,
+            status: this.status,
+            type: this.type,
+            ack: this.ack,
+            baudRate: this.getBaudRate,
+            path: this.getPath,
+            dataBits: this.getDataBits,
+            highWaterMark: this.getHighWaterMark,
+            parity: this.getParity,
+            rtscts: this.getRtscts,
+            rtsMode: this.getRtsMode,
+            stopBits: this.getStopBits,
+        };
     }
 }
 exports.default = Receiver;
