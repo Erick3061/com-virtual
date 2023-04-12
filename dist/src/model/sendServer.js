@@ -9,10 +9,8 @@ const reciver_interface_1 = require("../interfaces/reciver.interface");
 const sender_1 = require("./sender");
 class SendServer extends sender_1.Sender {
     constructor(db, id, port, status = reciver_interface_1.StatusSender.start) {
-        super(db, id);
+        super(db, id, port, status);
         this.server = null;
-        this.port = port;
-        this.status = status;
     }
     start() {
         this.server = net_1.default.createServer((socket) => {
@@ -26,28 +24,29 @@ class SendServer extends sender_1.Sender {
             });
         });
         this.server.on('error', async (err) => {
-            this.status = reciver_interface_1.StatusSender.stop;
+            this.setStatus = reciver_interface_1.StatusSender.stop;
             await this.updateState(reciver_interface_1.StatusSender.stop);
             console.log(err);
         });
-        this.server.listen(this.port, async () => {
-            this.status = reciver_interface_1.StatusSender.start;
+        this.server.listen(this.getPort, async () => {
+            this.setStatus = reciver_interface_1.StatusSender.start;
             await this.updateState(reciver_interface_1.StatusSender.start);
             console.log('Serve inicializado');
         });
-        setTimeout(() => {
-            this.stop();
-        }, 10000);
-    }
-    get state() {
-        return this.status;
     }
     isValid() {
-        return (this.status === reciver_interface_1.StatusSender.start && this.getClient) ? true : false;
+        return (this.getStatus === reciver_interface_1.StatusSender.start && this.getClient) ? true : false;
     }
     stop() {
         this.getClient?.destroy();
-        this.server?.close();
+        return new Promise((resolve, reject) => {
+            this.server?.close((err) => {
+                if (err) {
+                    return reject(err.message);
+                }
+                resolve(true);
+            });
+        });
     }
 }
 exports.SendServer = SendServer;

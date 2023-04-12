@@ -8,15 +8,12 @@ const reciver_interface_1 = require("../interfaces/reciver.interface");
 const sender_1 = require("./sender");
 class sendClient extends sender_1.Sender {
     constructor(db, id, ip, port, status = reciver_interface_1.StatusSender.connecting) {
-        super(db, id);
-        this.ip = ip;
-        this.port = port;
-        this.status = status;
+        super(db, id, port, status, ip);
     }
     start() {
         this.setClient = new net_1.default.Socket();
         this.getClient.on('end', async () => {
-            this.status = reciver_interface_1.StatusSender.stop;
+            this.setStatus = reciver_interface_1.StatusSender.stop;
             await this.updateState(reciver_interface_1.StatusSender.stop);
             console.log('end');
         });
@@ -24,11 +21,11 @@ class sendClient extends sender_1.Sender {
             console.log('se desconecto el serv');
         });
         this.getClient.once('close', async () => {
-            if (this.status !== reciver_interface_1.StatusSender.stop) {
-                if (this.status !== reciver_interface_1.StatusSender.connecting) {
+            if (this.getStatus !== reciver_interface_1.StatusSender.stop) {
+                if (this.getStatus !== reciver_interface_1.StatusSender.connecting) {
                     await this.updateState(reciver_interface_1.StatusSender.connecting);
                 }
-                this.status = reciver_interface_1.StatusSender.connecting;
+                this.setStatus = reciver_interface_1.StatusSender.connecting;
                 this.reconnect();
             }
             console.log('Connection closed');
@@ -36,17 +33,9 @@ class sendClient extends sender_1.Sender {
         this.getClient.on('connect', async () => {
             console.log('conectado');
             await this.updateState(reciver_interface_1.StatusSender.start);
-            this.status = reciver_interface_1.StatusSender.start;
+            this.setStatus = reciver_interface_1.StatusSender.start;
         });
-        this.getClient.connect(this.port, this.ip);
-        setTimeout(() => {
-            this.stop();
-        }, 10000);
-    }
-    disconnect() {
-        if (this.getClient) {
-            this.getClient.destroy();
-        }
+        this.getClient.connect(this.getPort, this.getIp);
     }
     reconnect() {
         console.log('Recnecting');
@@ -54,15 +43,14 @@ class sendClient extends sender_1.Sender {
             this.start();
         }, 10000);
     }
-    get state() {
-        return this.status;
-    }
     isValid() {
-        return this.status === reciver_interface_1.StatusSender.start;
+        return this.getStatus === reciver_interface_1.StatusSender.start;
     }
     stop() {
-        this.getClient?.destroy();
-        this.status = reciver_interface_1.StatusSender.stop;
+        if (this.getClient) {
+            this.getClient.destroy();
+            this.setStatus = reciver_interface_1.StatusSender.stop;
+        }
     }
 }
 exports.default = sendClient;

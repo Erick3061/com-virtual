@@ -2,16 +2,31 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Sender = void 0;
 class Sender {
-    constructor(db, id) {
+    constructor(db, id, port, status, ip = "127.0.0.1") {
         this.client = null;
         this.db = db;
         this.id = id;
+        this.port = port;
+        this.status = status;
+        this.ip = ip;
     }
     set setClient(value) {
         this.client = value;
     }
+    set setStatus(value) {
+        this.status = value;
+    }
     get getClient() {
         return this.client;
+    }
+    get getPort() {
+        return this.port;
+    }
+    get getStatus() {
+        return this.status;
+    }
+    get getIp() {
+        return this.ip;
     }
     controllerAck() {
         return new Promise((resolve, reject) => {

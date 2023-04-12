@@ -6,7 +6,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReceiverData = void 0;
+exports.SenderData = exports.ReceiverData = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class ReceiverData {
@@ -33,12 +33,6 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsInt)()
 ], ReceiverData.prototype, "intervalHeart", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)()
-], ReceiverData.prototype, "isServerSender", void 0);
-__decorate([
-    (0, class_validator_1.IsInt)()
-], ReceiverData.prototype, "status", void 0);
 exports.ReceiverData = ReceiverData;
 class COM {
 }
@@ -71,4 +65,14 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsIn)([1, 2, 1.5])
 ], COM.prototype, "stopBits", void 0);
+class SenderData {
+}
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUrl)()
+], SenderData.prototype, "ip", void 0);
+__decorate([
+    (0, class_validator_1.IsInt)()
+], SenderData.prototype, "port", void 0);
+exports.SenderData = SenderData;
 //# sourceMappingURL=receiver.js.map

@@ -59,16 +59,6 @@ class Serial {
     get getStopBits() {
         return this.stopBits;
     }
-    open() {
-        return new Promise((resolve, reject) => {
-            this.port.open((err) => {
-                if (err) {
-                    return reject(err.message);
-                }
-                resolve(true);
-            });
-        });
-    }
 }
 exports.Serial = Serial;
 //# sourceMappingURL=serial.js.map
