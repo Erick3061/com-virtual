@@ -4,7 +4,6 @@ export class Serial {
 
     private port: SerialPort;
     private parser: any;
-
     private delimiter: string;
     private baudRate: number;
     private path: string;
@@ -85,19 +84,6 @@ export class Serial {
     }
     protected get getStopBits() {
         return this.stopBits;
-    }
-
-    open() {
-        return new Promise<boolean>((resolve, reject) => {
-            this.port.open((err) => {
-                if (err) {
-
-                    return reject(err.message);
-                }
-
-                resolve(true);
-            });
-        });
     }
 
 }

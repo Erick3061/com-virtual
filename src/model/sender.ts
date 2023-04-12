@@ -8,27 +8,45 @@ export class Sender {
     private client: net.Socket | null = null;
     private db: Database;
     private id: string;
+    private port: number;
+    private status: StatusSender;
+    private ip: string;
 
 
 
-    constructor(db: Database, id: string) {
+    constructor(db: Database, id: string, port: number, status: StatusSender, ip: string = "127.0.0.1") {
         this.db = db;
         this.id = id;
+        this.port = port;
+        this.status = status;
+        this.ip = ip;
     }
 
 
-    public set setClient(value: net.Socket | null) {
+    protected set setClient(value: net.Socket | null) {
         this.client = value;
     }
+    protected set setStatus(value: StatusSender){
+        this.status = value;
+    }
 
 
-    public get getClient(): net.Socket | null {
+    protected get getClient(): net.Socket | null {
         return this.client!;
     }
 
+    public get getPort() {
+        return this.port
 
+    }
+    public get getStatus() {
+        return this.status
+    }
+    public get getIp() {
+        return this.ip
+    }
 
-    controllerAck() {
+    protected controllerAck() {
 
         return new Promise<string>((resolve, reject) => {
             this.client && this.client.once('data', data => {
@@ -56,7 +74,7 @@ export class Sender {
         })
     }
 
-    updateState(newState: StatusSender) {
+    protected updateState(newState: StatusSender) {
         return new Promise<boolean>((resolve, reject) => {
             this.db.run(`update Receiver set senderStatus = ${newState} where id="${this.id}"`, (err) => err ? reject(err.message) : resolve(true));
         });

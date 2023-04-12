@@ -28,8 +28,22 @@ export interface COM {
     stopBits?: 1 | 2 | 1.5;
 }
 
-export interface Receiver {
+export interface ReceiverPost {
     com: COM;
+    delimiter: string;
+    attempt: number;
+    intervalAck: number;
+    intervalHeart: number;
+    heartbeat: string;
+    ack: string;
+}
+
+export interface ReceiverDB extends COM{
+    id: string;
+    typeSender: TypeSender;
+    ip: string;
+    port: number;
+    senderStatus: StatusSender;
     delimiter: string;
     status: Status;
     attempt: number;

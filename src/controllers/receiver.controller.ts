@@ -3,17 +3,8 @@ import sqlite from 'sqlite3';
 import { Server as SocketIoServer } from 'socket.io';
 import Receiver from '../model/receiver'
 
-import { Receiver as ReceiverInterface, COM, Status, TypeSender, StatusSender } from '../interfaces/reciver.interface';
+import { Status, TypeSender, ReceiverDB, ReceiverPost } from '../interfaces/reciver.interface';
 
-type Re = Omit<ReceiverInterface, 'com'>;
-
-interface ReceiverResponse extends Re, COM {
-    id: string;
-    typeSender: TypeSender;
-    ip: string;
-    port: number;
-    senderStatus: StatusSender;
-}
 
 export class Receivers {
 
@@ -22,7 +13,7 @@ export class Receivers {
     private io: SocketIoServer;
     private static instance: Receivers;
 
-    private constructor(io: SocketIoServer){
+    private constructor(io: SocketIoServer) {
         const dir: string = path.join(__dirname, '../../../db');
         this.io = io;
         this.db = new sqlite.Database(path.join(dir, 'db.db'),
@@ -32,39 +23,49 @@ export class Receivers {
                     console.log(`Fallo al crear la base de datos ${err}`);
                     return;
                 }
-                // this.db.run('drop table Receiver')
-                // this.db.run('drop table devttyUSB0')
                 this.load();
             });
     }
 
+    public static getInstance(io: SocketIoServer) {
+        if (!Receivers.instance) {
+            Receivers.instance = new Receivers(io);
+        }
+        return Receivers.instance;
+    }
+
+    // ********************************
     load() {
-        this.db.all(`SELECT * FROM Receiver`, async (err, rows: Array<ReceiverResponse>) => {
+
+        this.db.all(`SELECT * FROM Receiver`, async (err, rows: Array<ReceiverDB>) => {
             if (err) {
                 try {
-                    console.log(err.message + " Creando...");
                     await this.crateReceiver();
                     return;
                 } catch (error) {
                     console.log(error);
                 }
             }
-            await Promise.all(rows.map(async r => {
+            await Promise.all(rows.map(async receiver => {
 
-                const { id, baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, status, typeSender, ip, port, senderStatus } = r;
+                const { baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, status, typeSender, ip, port, senderStatus } = receiver;
                 const com = { baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode };
 
-                
-                const rv = new Receiver(intervalHeart, this.db, heartbeat, typeSender, ack, this.io, delimiter, com, attempt, intervalAck);
+
+                const rv = new Receiver(intervalHeart, this.db, heartbeat, ack, this.io, delimiter, com, attempt, intervalAck, status, typeSender);
 
                 try {
                     if (status === Status.disconnect) {
                         return true;
                     }
+                    // TODO
                     if (typeSender !== TypeSender.withOutServer) {
                         rv.createSender(typeSender, ip, port, senderStatus);
                     }
+
                     await rv.open();
+                    // TODO Verificar la existencia de la tabla para sus eventos
+                    // await this.createTableEventReceiver(rv.getId);
                     await rv.init();
                     return true;
                 } catch (error) {
@@ -77,75 +78,118 @@ export class Receivers {
         });
     }
 
-    public static getInstance(io: SocketIoServer){
-        if(!Receivers.instance){
-            Receivers.instance = new Receivers(io);
-        }
-        return Receivers.instance;
-    }
+    // ********************************
+    async newReciver(data: ReceiverPost) {
 
-
-    async newReciver(data: ReceiverInterface) {
-
-        const { com, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, status } = data;
+        const { com, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart } = data;
 
         const id = com.path.replaceAll('/', '');
 
         if (this.receivers.some(rv => rv.getId === id)) {
-            return 'no';
+            return 'Puerto serial en uso';
         }
 
-        const rv = new Receiver(intervalHeart, this.db, heartbeat, 2, ack, this.io, delimiter, com, attempt, intervalAck);
-        
+        const rv = new Receiver(intervalHeart, this.db, heartbeat, ack, this.io, delimiter, com, attempt, intervalAck);
+
         try {
             await rv.open();
-            await rv.init();
             await this.save(rv.getId, data);
+            await rv.init();
             this.receivers = [...this.receivers, rv];
+            return rv;
         } catch (error) {
-            console.log(error);
-
-            return 'error';
+            await rv.close();
+            return `${error}`;
         }
     }
 
-    getAll(){
-        this.receivers.map( rv => rv.getInformation())
+    // ********************************
+    async stopReceiver(id: string) {
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) {
+            throw 'Receiver with ID not exist';
+        }
+        await rv.close();
+        await this.updateState(id, Status.disconnect);
     }
 
-    removeReciver(id: string){
+    // ******************************
+    async startReceiver(id: string) {
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) {
+            throw 'Receiver with ID not exist';
+        }
+        await rv.open();
+        await rv.init();
+        await this.updateState(id, Status.connect);
+
+    }
+
+    // *******************************
+    async removeReciver(id: string) {
         const rv = this.receivers.find(rv => rv.getId === id);
         if (!rv) {
             return 'Receiver with ID not exist';
         }
-        rv.delete();
+        //TODO
+        await rv.close();
+        await rv.delete();
+        this.receivers = this.receivers.filter(rv => rv.getId != id);
     }
 
-    stopReceiver(id: string){
-        const rv = this.receivers.find( rv => rv.getId === id);
-        if(!rv){
-            return 'Receiver with ID not exist';
-        }
-        rv.close();
-    }
-    stopSenderReciver(id: string){
-        
-        const rv = this.receivers.find( rv => rv.getId === id);
-        if(!rv){
-            return 'Receiver with ID not exist';
-        }
-        
+
+
+
+
+
+
+
+
+
+
+
+
+    getAll() {
+        return this.receivers.map(rv => rv.getInformation())
     }
 
-    private async save(id: string, data: ReceiverInterface) {
-        const { com, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, status } = data;
+    
+
+    
+    stopSenderReciver(id: string) {
+
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) {
+            return 'Receiver with ID not exist';
+        }
+
+    }
+
+
+    // * DB
+    async save(id: string, data: ReceiverPost) {
+        try {
+            await this.saveRV(id, data);
+            await this.createTableEventReceiver(id);
+            return true;
+        } catch (error) {
+            await this.deleteDB(id);
+            if (typeof error === "string") {
+                throw error;
+            }
+            throw 'Error no controlado';
+        }
+    }
+
+    private async saveRV(id: string, data: ReceiverPost) {
+        const { com, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart } = data;
         const { baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode } = com;
         return new Promise<boolean>((resolve, reject) => {
             this.db.run(`
                     INSERT INTO Receiver (
                         id, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, baudRate, path, typeSender, status, dataBits, highWaterMark, parity, rtscts, rtsMode, stopBits
                     ) VALUES (
-                        "${id}", "${ack}", ${attempt}, "${delimiter}", "${heartbeat}", ${intervalAck}, ${intervalHeart}, ${baudRate}, "${path}", ${TypeSender.withOutServer}, ${status}, ${dataBits}, ${highWaterMark}, "${parity}", ${rtscts}, "${rtsMode}", ${stopBits}
+                        "${id}", "${ack}", ${attempt}, "${delimiter}", "${heartbeat}", ${intervalAck}, ${intervalHeart}, ${baudRate}, "${path}", ${TypeSender.withOutServer}, ${Status.connect}, ${dataBits}, ${highWaterMark}, "${parity}", ${rtscts}, "${rtsMode}", ${stopBits}
                     );
                 `,
                 (err) => {
@@ -153,6 +197,49 @@ export class Receivers {
                         return reject(err.message);
                     }
                     return resolve(true);
+                });
+        });
+    }
+
+    private async createTableEventReceiver(id: string) {
+        return new Promise<boolean>((resolve, reject) => {
+            this.db.run(
+                `
+                    CREATE TABLE IF NOT EXISTS ${id} (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT)
+                `
+                , (err) => {
+                    if (err) {
+                        return reject(err.message);
+
+                    }
+                    resolve(true);
+                });
+        });
+    }
+
+    private updateState(id: string, state: Status) {
+        return new Promise((resolve, reject) => {
+            this.db.run(`UPDATE Receiver set status = ${state} WHERE id = "${id}"`, (err) => {
+                if (err) {
+                    return reject(err.message);
+                }
+                resolve(true);
+            })
+        })
+    }
+
+
+    private deleteDB(id: string) {
+        return new Promise<boolean>((resolve, reject) => {
+            this.db.run(
+                `
+                    DELETE FROM Receiver where id = "${id}"
+                `
+                , (err) => {
+                    if (err) {
+                        return reject(err.message);
+                    }
+                    resolve(true);
                 });
         });
     }
@@ -193,5 +280,5 @@ export class Receivers {
         });
     }
 
-    
+
 }

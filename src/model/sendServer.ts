@@ -6,14 +6,10 @@ import { Sender } from './sender';
 export class SendServer extends Sender {
 
     private server: Server | null = null;
-    private port: number;
-    private status: StatusSender;
 
 
     constructor(db: Database, id: string, port: number, status: StatusSender = StatusSender.start) {
-        super(db, id);
-        this.port = port;
-        this.status = status;
+        super(db, id, port, status);
     }
 
     start() {
@@ -32,36 +28,35 @@ export class SendServer extends Sender {
         });
 
         this.server.on('error', async (err) => {
-            this.status = StatusSender.stop;
+            this.setStatus = StatusSender.stop;
             await this.updateState(StatusSender.stop);
             console.log(err);
         });
 
-        this.server.listen(this.port, async () => {
-            this.status = StatusSender.start;
+        this.server.listen(this.getPort, async () => {
+            this.setStatus = StatusSender.start;
             await this.updateState(StatusSender.start);
             console.log('Serve inicializado');
         });
 
-        setTimeout(() => {
-            this.stop();
-        }, 10000);
-
     }
 
-
-    public get state(): StatusSender {
-        return this.status;
-    }
 
 
     isValid() {
-        return (this.status === StatusSender.start && this.getClient) ? true : false;
+        return (this.getStatus === StatusSender.start && this.getClient) ? true : false;
     }
 
     stop() {
         this.getClient?.destroy();
-        this.server?.close();
+        return new Promise<boolean>((resolve, reject) => {
+            this.server?.close( (err) => {
+                if(err){
+                    return reject(err.message);
+                }
+                resolve(true);
+            });
+        })
     }
 
 }

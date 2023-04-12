@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUrl, ValidateNested } from "class-validator";
 
 export class ReceiverData{
 
@@ -24,12 +24,6 @@ export class ReceiverData{
     
     @IsInt()
     public intervalHeart!: number;
-    
-    @IsBoolean()
-    public isServerSender!: boolean;
-    
-    @IsInt()
-    public status!: number;
 
 }
 
@@ -63,5 +57,16 @@ class COM{
     @IsIn([1,2,1.5])
     public stopBits?: 1 | 2 | 1.5;
 
+
+}
+
+export class SenderData{
+    
+    @IsOptional()
+    @IsUrl()
+    public ip!: string;
+
+    @IsInt()
+    public port!: number;
 
 }

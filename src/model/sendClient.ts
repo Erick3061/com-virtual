@@ -5,24 +5,15 @@ import { Sender } from './sender';
 
 export default class sendClient extends Sender {
 
-
-    private ip: string;
-    private port: number;
-    private status: StatusSender;
-
-
     constructor(db: Database, id: string, ip: string, port: number, status: StatusSender = StatusSender.connecting) {
-        super(db, id);
-        this.ip = ip;
-        this.port = port;
-        this.status = status;
+        super(db, id, port, status,ip);
     }
 
     start() {
         this.setClient = new net.Socket();
 
         this.getClient!.on('end', async () => {
-            this.status = StatusSender.stop;
+            this.setStatus = StatusSender.stop;
             await this.updateState(StatusSender.stop);
             console.log('end');
         });
@@ -32,11 +23,11 @@ export default class sendClient extends Sender {
         });
 
         this.getClient!.once('close', async () => {//estaba encendido y se desconecto y no esta conectado
-            if (this.status !== StatusSender.stop) {
-                if (this.status !== StatusSender.connecting) {
+            if (this.getStatus !== StatusSender.stop) {
+                if (this.getStatus !== StatusSender.connecting) {
                     await this.updateState(StatusSender.connecting);
                 }
-                this.status = StatusSender.connecting;
+                this.setStatus = StatusSender.connecting;
                 this.reconnect();
             }
             console.log('Connection closed');
@@ -45,23 +36,14 @@ export default class sendClient extends Sender {
         this.getClient!.on('connect', async () => {
             console.log('conectado');
             await this.updateState(StatusSender.start);
-            this.status = StatusSender.start;
+            this.setStatus = StatusSender.start;
         });
 
-        this.getClient!.connect(this.port, this.ip);
+        this.getClient!.connect(this.getPort, this.getIp);
 
-        setTimeout(() => {
-            this.stop();
-        }, 10000);
     }
 
-    disconnect() {
-        if (this.getClient) {
-            this.getClient.destroy();
-        }
-    }
-
-    reconnect() {
+    private reconnect() {
         console.log('Recnecting');
 
         setTimeout(() => {
@@ -70,20 +52,17 @@ export default class sendClient extends Sender {
 
     }
 
-    public get state(): StatusSender {
-        return this.status;
-    }
-
 
     isValid() {
-        return this.status === StatusSender.start;
+        return this.getStatus === StatusSender.start;
     }
 
     stop() {
-        this.getClient?.destroy();
-        this.status = StatusSender.stop;
+        if(this.getClient){
+            this.getClient.destroy();
+            this.setStatus = StatusSender.stop;
+
+        }
     }
-
-
 
 }
