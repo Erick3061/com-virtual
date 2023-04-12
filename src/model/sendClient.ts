@@ -57,12 +57,15 @@ export default class sendClient extends Sender {
         return this.getStatus === StatusSender.start;
     }
 
-    stop() {
+    async stop() {
         if(this.getClient){
+            await this.updateState(StatusSender.stop);
             this.getClient.destroy();
+            this.setClient = null;
             this.setStatus = StatusSender.stop;
-
+            return true;
         }
+        throw 'No hay cliente'
     }
 
 }

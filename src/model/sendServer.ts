@@ -8,11 +8,12 @@ export class SendServer extends Sender {
     private server: Server | null = null;
 
 
-    constructor(db: Database, id: string, port: number, status: StatusSender = StatusSender.start) {
+    constructor(db: Database, id: string, port: number, status: StatusSender = StatusSender.stop) {
         super(db, id, port, status);
     }
 
     start() {
+
 
         this.server = net.createServer((socket) => {
             if (this.getClient) {
@@ -26,6 +27,11 @@ export class SendServer extends Sender {
             });
 
         });
+
+        this.server.on("close", async () => {
+            this.setStatus = StatusSender.stop;
+            await this.updateState(StatusSender.stop);
+        })
 
         this.server.on('error', async (err) => {
             this.setStatus = StatusSender.stop;
@@ -50,12 +56,15 @@ export class SendServer extends Sender {
     stop() {
         this.getClient?.destroy();
         return new Promise<boolean>((resolve, reject) => {
-            this.server?.close( (err) => {
-                if(err){
+
+            this.server?.close((err) => {
+                if (err) {
                     return reject(err.message);
                 }
+                this.server = null;
                 resolve(true);
             });
+
         })
     }
 

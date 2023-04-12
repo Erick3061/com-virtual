@@ -3,7 +3,7 @@ import sqlite from 'sqlite3';
 import { Server as SocketIoServer } from 'socket.io';
 import Receiver from '../model/receiver'
 
-import { Status, TypeSender, ReceiverDB, ReceiverPost } from '../interfaces/reciver.interface';
+import { Status, TypeSender, ReceiverDB, ReceiverPost, SenderPost, StatusSender } from '../interfaces/reciver.interface';
 
 
 export class Receivers {
@@ -109,7 +109,9 @@ export class Receivers {
         if (!rv) {
             throw 'Receiver with ID not exist';
         }
+        await this.stopSender(id);
         await rv.close();
+
         await this.updateState(id, Status.disconnect);
     }
 
@@ -129,33 +131,79 @@ export class Receivers {
     async removeReciver(id: string) {
         const rv = this.receivers.find(rv => rv.getId === id);
         if (!rv) {
-            return 'Receiver with ID not exist';
+            throw 'Receiver with ID not exist';
         }
         //TODO
+        await this.deleteDB(id);
+        await this.deleteSender(id);
         await rv.close();
-        await rv.delete();
         this.receivers = this.receivers.filter(rv => rv.getId != id);
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
+    // ******************************
     getAll() {
         return this.receivers.map(rv => rv.getInformation())
     }
 
-    
 
-    
+    // *****************************
+    async addSender(id: string, data: SenderPost) {
+
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) throw 'Receiver with ID not exist';
+
+        data.ip = data.ip || "127.0.0.1";
+        const revs = this.getAll();
+        if (revs.find(rv => rv.ip === data.ip && rv.port === data.port)) {
+            throw 'Sender ocupado';
+        }
+
+        if (data.ip.includes("127.0.0.1")) {
+            await this.saveSender(id, data, TypeSender.withServer);
+            rv.createSender(TypeSender.withServer, data.ip, data.port!, StatusSender.start);
+        } else {
+            await this.saveSender(id, data, TypeSender.withClient);
+            rv.createSender(TypeSender.withClient, data.ip, data.port!, StatusSender.connecting);
+        }
+
+    }
+
+    async stopSender(id: string, isDelete: boolean= false, deleteAll:boolean=false) {
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) throw 'Receiver with ID not exist';
+        await rv.stopSender(isDelete, deleteAll);
+    }
+
+    async startSender(id: string) {
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) throw 'Receiver with ID not exist';
+        rv.startSender();
+    }
+
+    async deleteSender(id: string) {
+        const rv = this.receivers.find(rv => rv.getId === id);
+        if (!rv) throw 'Receiver with ID not exist';
+
+        await this.stopSender(id, true, true);
+
+        rv.resetSender();
+        await this.saveSender(id, {}, TypeSender.withOutServer);
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     stopSenderReciver(id: string) {
 
         const rv = this.receivers.find(rv => rv.getId === id);
@@ -191,6 +239,20 @@ export class Receivers {
                     ) VALUES (
                         "${id}", "${ack}", ${attempt}, "${delimiter}", "${heartbeat}", ${intervalAck}, ${intervalHeart}, ${baudRate}, "${path}", ${TypeSender.withOutServer}, ${Status.connect}, ${dataBits}, ${highWaterMark}, "${parity}", ${rtscts}, "${rtsMode}", ${stopBits}
                     );
+                `,
+                (err) => {
+                    if (err) {
+                        return reject(err.message);
+                    }
+                    return resolve(true);
+                });
+        });
+    }
+
+    private async saveSender(id: string, data: SenderPost, typeSender: TypeSender) {
+        return new Promise<boolean>((resolve, reject) => {
+            this.db.run(`
+                    UPDATE Receiver SET  ip = ${data.ip ? `"${data.ip}"` : "NULL"}, typeSender = ${typeSender}, port = ${data.port ? data.port : "NULL"} where id = "${id}";
                 `,
                 (err) => {
                     if (err) {
@@ -239,7 +301,12 @@ export class Receivers {
                     if (err) {
                         return reject(err.message);
                     }
-                    resolve(true);
+                    this.db.run(`DROP TABLE IF EXISTS ${id}`,
+                        (err) => {
+                            if (err) return reject(err.message);
+                            return resolve(true);
+                        }
+                    );
                 });
         });
     }

@@ -84,18 +84,26 @@ export default class Receiver extends Serial {
     public get getStatus() {
         return this.status;
     }
+    public get getTypeSender() {
+        return this.typeSender;
+    }
+    get getSender() {
+        return this.sender;
+    }
 
     close() {
         return new Promise<boolean>((resolve, reject) => {
-            if(this.getPort.isOpen){
+            if (this.getPort.isOpen) {
                 this.getPort.close(err => {
                     if (err) {
                         return reject(err.message);
                     }
                     this.cronHeartbeat.stop();
+                    resolve(true);
                 });
+            }else{
+                reject("Port is closed");
             }
-            resolve(true);
         });
     }
 
@@ -106,32 +114,43 @@ export default class Receiver extends Serial {
     createSender(typeSender: TypeSender, ip: string, port: number, status: StatusSender) {
         if (typeSender === TypeSender.withServer) {
             console.log('Server');
+            this.typeSender = typeSender;
             this.sender = new SendServer(this.DB, this.id, port, status);
-            if (status === StatusSender.start) this.sender.start();
         } else {
             console.log('Client');
+            this.typeSender = typeSender;
             this.sender = new SendClient(this.DB, this.id, ip, port, status);
-            if (status !== StatusSender.stop) this.sender.start();
         }
+        if (status !== StatusSender.stop) this.sender.start();
+    }
+    
+    async stopSender(isDelete: boolean = false, deleteAll:boolean=false) {
+        if (this.sender) {
+            if(this.sender.getStatus !== StatusSender.stop){
+                return await this.sender.stop();
+            }
+            if(isDelete) return;
+            throw 'Sender is stop';
+        }
+        if (deleteAll) return;
+        throw 'Not sender';
+    }
+    resetSender(){
+        this.sender = null;
     }
 
     startSender() {
         if (this.sender) {
-            this.sender.start();
+            console.log(this.sender.getStatus);
+            
+            if(this.sender.getStatus === StatusSender.stop){
+                this.sender.start();
+            }
+            throw 'Server is start';
         }
     }
 
-    async stopSender() {
-        try {
-            if (this.sender) {
-                await this.sender.stop();
-                this.io.emit(`stopSender-${this.id}`);
-            }
-        } catch (error) {
-            this.io.emit("error", error);
-            console.log(error);
-        }
-    }
+    
 
     deleteSender() {
         if (this.sender) {
@@ -142,41 +161,20 @@ export default class Receiver extends Serial {
         }
     }
 
-
-
-    delete() {
-        if (this.sender?.getStatus === StatusSender.stop || this.sender === null) {
-            return new Promise<boolean>((resolve, reject) => {
-                this.DB.run(`DELETE FROM Receiver WHERE id="${this.id}"`,
-                    async (err) => {
-                        if (err) {
-                            return reject(err.message)
-                        }
-                        this.DB.run(`DROP TABLE IF EXISTS ${this.id}`,
-                            (err) => {
-                                if (err) return reject(err.message);
-                                this.cronHeartbeat.stop();
-                                return resolve(true);
-                            });
-                    });
-            });
-        }
-        return false;
-    }
-
     open() {
-        
         return new Promise<boolean>((resolve, reject) => {
-            if(!this.getPort.isOpen){
+            if (!this.getPort.isOpen) {
                 this.getPort.open((err) => {
                     if (err) {
                         this.status = Status.error;
                         return reject(err.message);
                     }
                     this.status = Status.connect;
+                    resolve(true);
                 });
+            }else{
+                reject('Port is open');
             }
-            resolve(true);
         });
     }
 

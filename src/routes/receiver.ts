@@ -111,17 +111,66 @@ export class ReceiverRouter {
         })
 
         this.router.post('/add-sender/:id', async(req:Request, res:Response) => {
-            const receiver = plainToClass(SenderData, req.body);
-            const errors = await validate(receiver);
+            const {id} = req.params;
+            const sender = plainToClass(SenderData, req.body);
+            const errors = await validate(sender);
 
             if (errors.length > 0) {
                 return res.json({
                     errors: errors.map(err => this.formatError(err))
                 })
             }
-            res.json({
-                msg: 'ok'
-            })
+            try {
+                await this.recivers.addSender(id, sender);
+                res.json({
+                    msg: 'ok'
+                })
+            } catch (error) {
+                res.json({
+                    msg: `${error}`
+                })
+            }
+        })
+
+        this.router.get('/stop-sender/:id', async (req: Request, res: Response) => {
+            const { id } = req.params;
+            try {
+                await this.recivers.stopSender(id);
+                res.json({
+                    msg: 'ok'
+                })
+            } catch (error) {
+                res.json({
+                    msg: `${error}`
+                })
+            }
+        })
+        this.router.get('/start-sender/:id', async (req: Request, res: Response) => {
+            const { id } = req.params;
+            try {
+                await this.recivers.startSender(id);
+                res.json({
+                    msg: 'ok'
+                })
+            } catch (error) {
+                res.json({
+                    msg: `${error}`
+                })
+            }
+        })
+
+        this.router.delete('/sender/:id', async (req: Request, res: Response) => {
+            const { id } = req.params;
+            try {
+                await this.recivers.deleteSender(id);
+                res.json({
+                    msg: 'ok'
+                })
+            } catch (error) {
+                res.json({
+                    msg: `${error}`
+                })
+            }
         })
 
     }

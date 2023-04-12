@@ -38,6 +38,11 @@ export interface ReceiverPost {
     ack: string;
 }
 
+export interface SenderPost{
+    ip?: string;
+    port?: number;
+}
+
 export interface ReceiverDB extends COM{
     id: string;
     typeSender: TypeSender;
