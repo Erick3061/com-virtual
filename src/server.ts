@@ -3,7 +3,7 @@ import { createServer, Server as ServerHttp } from 'http';
 import { Server as SocketIoServer } from 'socket.io';
 
 import cors from 'cors';
-import {ReceiverRouter} from './routes/receiver'
+import { ReceiverRouter } from './routes/receiver'
 import { Receivers } from './controllers/receiver.controller';
 
 
@@ -25,7 +25,7 @@ class Server {
     listen() {
         this.middlewares();
         this.routes();
-        this.initialSokcet();
+        // this.initialSokcet();
         this.server.listen(4000, () => {
             console.log(`Server on port ${4000}`);
         });
@@ -36,39 +36,34 @@ class Server {
         this.app.use(express.json());
     }
 
+    // initialSokcet() {
 
 
-    initialSokcet() {
+    //     this.io.on('connection', client => {
+    //         const receivers = Receivers.getInstance(this.io);
+    //         client.emit('all', receivers.getAll());
 
-        
-        this.io.on('connection', client => {
+    //         console.log('Cliente conectado');
+    //         console.log(client.id);
 
-            const receivers = Receivers.getInstance(this.io);
+    //         client.on('disconnect', () => {
+    //             console.log('Cliente Desconectado');
 
-            client.emit('all', receivers.getAll());
+    //         });
 
+    //         client.on('mensaje', (payload) => {
+    //             console.log('Mensaje', { payload });
+    //             // io.emit('mensaje', { admin: 'Nuevo mensaje' })
+    //         });
 
-            console.log('Cliente conectado');
-            console.log(client.id);
+    //         client.on('qqqq', (payload) => {
+    //             console.log(payload);
 
-            client.on('disconnect', () => {
-                console.log('Cliente Desconectado');
+    //             // client.emit('nuevo-mensaje', 'HEY...' + payload);
+    //         });
 
-            });
-
-            client.on('mensaje', (payload) => {
-                console.log('Mensaje', { payload });
-                // io.emit('mensaje', { admin: 'Nuevo mensaje' })
-            });
-
-            client.on('qqqq', (payload) => {
-                console.log(payload);
-
-                // client.emit('nuevo-mensaje', 'HEY...' + payload);
-            });
-
-        });
-    }
+    //     });
+    // }
 
     routes() {
         // Router and controller

@@ -2,30 +2,24 @@ import net, { Server } from 'net';
 import { Database } from 'sqlite3';
 import { StatusSender } from '../interfaces/reciver.interface';
 import { Sender } from './sender';
+import { Server as SocketIoServer } from 'socket.io';
 
 export class SendServer extends Sender {
 
     private server: Server | null = null;
+    private io: SocketIoServer;
 
-
-    constructor(db: Database, id: string, port: number, status: StatusSender = StatusSender.stop) {
+    constructor(io: SocketIoServer, db: Database, id: string, port: number, status: StatusSender = StatusSender.stop) {
         super(db, id, port, status);
+        this.io = io;
     }
 
     start() {
 
-
         this.server = net.createServer((socket) => {
-            if (this.getClient) {
-                console.log('ya existe un cliente conectado a este serv');
-                return;
-            }
+            if (this.getClient) return;
             this.setClient = socket;
-
-            socket.on('close', () => {
-                this.setClient = null;
-            });
-
+            socket.on('close', () => this.setClient = null);
         });
 
         this.server.on("close", async () => {
@@ -36,18 +30,15 @@ export class SendServer extends Sender {
         this.server.on('error', async (err) => {
             this.setStatus = StatusSender.stop;
             await this.updateState(StatusSender.stop);
-            console.log(err);
+            this.io.emit(`sender-${this.getid}`, { msg: err.message, status: this.getStatus });
         });
 
         this.server.listen(this.getPort, async () => {
             this.setStatus = StatusSender.start;
             await this.updateState(StatusSender.start);
-            console.log('Serve inicializado');
         });
 
     }
-
-
 
     isValid() {
         return (this.getStatus === StatusSender.start && this.getClient) ? true : false;

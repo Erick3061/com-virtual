@@ -8,7 +8,6 @@ import { Server as SocketIoServer } from 'socket.io';
 
 import async from 'async';
 
-
 interface Qevent {
     id: number;
     event: string;
@@ -36,13 +35,12 @@ export default class Receiver extends Serial {
         intervalHeart: number,
         DB: sqlite.Database,
         heartbeat: string,
-        // type: TypeSender,
         ack: string,
         io: SocketIoServer,
         // * Serialport
         delimiter: string,
         options: COM,
-        // Opcinales
+        // * Opcinales
         attempt: number = 0,
         intervalAck: number = 1000,
         status: Status = Status.disconnect,
@@ -64,13 +62,21 @@ export default class Receiver extends Serial {
         this.cronHeartbeat = new CronJob(
             `*/${this.intervalHeart} * * * * *`,
             () => {
-                console.log('entro cron ' + this.id, new Date().getTime() - this.h1.getTime());
                 if (new Date().getTime() - this.h1.getTime() > this.intervalHeart * 1000) {
-                    console.log('fallo');
-                    this.io.emit('data', 'se desconecto');
-                    this.status = Status.error;
+                    //* Status message 1:Success, 2:warning, 3:Error
+                    this.status = Status.warning;
+                    this.io.emit(`status-${this.id}`, {
+                        msg: `Posible desconexión Heartbeat`,
+                        status: this.status
+                    });
                 } else {
-                    this.status = Status.connect;
+                    if (this.status !== Status.connect) {
+                        this.status = Status.connect;
+                        this.io.emit(`status-${this.id}`, {
+                            msg: `Conexión restablecida`,
+                            status: this.status
+                        });
+                    }
                 }
             }
         );
@@ -95,67 +101,58 @@ export default class Receiver extends Serial {
         return new Promise<boolean>((resolve, reject) => {
             if (this.getPort.isOpen) {
                 this.getPort.close(err => {
-                    if (err) {
-                        return reject(err.message);
-                    }
+                    if (err) return reject(err.message);
                     this.cronHeartbeat.stop();
                     resolve(true);
                 });
-            }else{
+            } else {
                 reject("Port is closed");
             }
         });
     }
 
-
-
-
     // * Sender
     createSender(typeSender: TypeSender, ip: string, port: number, status: StatusSender) {
         if (typeSender === TypeSender.withServer) {
-            console.log('Server');
             this.typeSender = typeSender;
-            this.sender = new SendServer(this.DB, this.id, port, status);
+            this.sender = new SendServer(this.io, this.DB, this.id, port, status);
         } else {
-            console.log('Client');
             this.typeSender = typeSender;
-            this.sender = new SendClient(this.DB, this.id, ip, port, status);
+            this.sender = new SendClient(this.io, this.DB, this.id, ip, port, status);
         }
         if (status !== StatusSender.stop) this.sender.start();
     }
-    
-    async stopSender(isDelete: boolean = false, deleteAll:boolean=false) {
+
+    async stopSender(isDelete: boolean = false, deleteAll: boolean = false) {
         if (this.sender) {
-            if(this.sender.getStatus !== StatusSender.stop){
+            if (this.sender.getStatus !== StatusSender.stop) {
                 return await this.sender.stop();
             }
-            if(isDelete) return;
+            if (isDelete) return;
             throw 'Sender is stop';
         }
         if (deleteAll) return;
         throw 'Not sender';
     }
-    resetSender(){
+
+    resetSender() {
         this.sender = null;
     }
 
     startSender() {
         if (this.sender) {
-            console.log(this.sender.getStatus);
-            
-            if(this.sender.getStatus === StatusSender.stop){
+            if (this.sender.getStatus === StatusSender.stop) {
                 this.sender.start();
+                return;
             }
             throw 'Server is start';
         }
+        throw 'Not sender';
     }
-
-    
 
     deleteSender() {
         if (this.sender) {
             this.sender.stop();
-            // ? Actualizar db
             this.typeSender = TypeSender.withOutServer;
             this.sender = null;
         }
@@ -172,7 +169,7 @@ export default class Receiver extends Serial {
                     this.status = Status.connect;
                     resolve(true);
                 });
-            }else{
+            } else {
                 reject('Port is open');
             }
         });
@@ -180,12 +177,8 @@ export default class Receiver extends Serial {
 
     emit() {
         this.queue = async.queue(async (task, completed) => {
-            // console.log(this.queue?.length() + '    ', task);
             if (this.queue?.length() === 0) {
-                // TODO reset autoinvrement
-                this.DB.run(`DELETE FROM sqlite_sequence WHERE name="${this.id}" `, (err) => {
-                    err && console.log(err);
-                });
+                this.DB.run(`DELETE FROM sqlite_sequence WHERE name="${this.id}" `);
             }
             try {
                 if (this.sender) {
@@ -196,10 +189,7 @@ export default class Receiver extends Serial {
                         // Esperar ack
                         await this.sender.waitAck(this.intervalAck);
                         // Completar
-                        this.DB.run(`DELETE FROM ${this.id} WHERE id=${task.id}`,
-                            (err) => {
-                                err && console.log(err);
-                            });
+                        this.DB.run(`DELETE FROM ${this.id} WHERE id=${task.id}`);
                         completed;
                     } else {
                         if (this.sender.isValid()) {
@@ -210,7 +200,6 @@ export default class Receiver extends Serial {
                 }
             } catch (err) {
                 this.attempt++;
-                // TODO verificar tiempos
                 setTimeout(() => {
                     if (this.queue) {
                         this.queue.unshift(task);
@@ -222,18 +211,16 @@ export default class Receiver extends Serial {
         }, 1);
     }
 
-    async init() {
+    init() {
         this.getPort.on('close', () => {
             this.status = Status.disconnect;
-            console.log('Deconexión');
-
+            this.io.emit(`status-${this.id}`, {
+                msg: 'Receiver disconnected',
+                status: this.status
+            });
         });
         this.cronHeartbeat.start();
-        this.io.on(`stopSender-${this.id}`, () => {
-            this.stopSender();
-        });
         this.h1 = new Date();
-
         this.emit();
         this.load();
         this.read();
@@ -246,10 +233,7 @@ export default class Receiver extends Serial {
             INSERT INTO ${this.id} (event) VALUES ("${event}");
         `,
             function (this, err) {
-                if (err) {
-                    return;
-                }
-
+                if (err) return;
                 self.queue?.push({ id: this.lastID, event: event });
             });
     }
@@ -257,7 +241,7 @@ export default class Receiver extends Serial {
     load() {
         this.DB.all(`SELECT * FROM ${this.id}`, (err, rows: Array<Qevent>) => {
             if (err) {
-                console.log(err);
+                this.io.emit(`error-${this.id}`, 'No se obtuvo data de la DB');
                 return;
             }
             rows.forEach(({ id, event }) => this.queue?.push({ id, event }));
@@ -265,20 +249,15 @@ export default class Receiver extends Serial {
     }
 
     read() {
-        this.getParser.on('data', (data: any) => {
-            console.log(data.toString());
+        this.getParser.on('data', (data: Buffer) => {
             this.h1 = new Date();
             if (!data.toString().includes(this.heartbeat)) {
-                this.io.emit("data", {
-                    id: this.id,
-                    event: data.toString()
-                });
+                this.io.emit(`event-${this.id}`, data.toString());
                 this.insertData(data.toString());
             }
             this.getPort.write(Buffer.from(this.ack, 'hex'));
         });
     }
-
 
     getInformation() {
         return {
@@ -304,7 +283,5 @@ export default class Receiver extends Serial {
             statusSender: this.sender?.getStatus || '',
         }
     }
-
-
 
 }

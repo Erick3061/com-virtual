@@ -26,7 +26,7 @@ export class Sender {
     protected set setClient(value: net.Socket | null) {
         this.client = value;
     }
-    protected set setStatus(value: StatusSender){
+    protected set setStatus(value: StatusSender) {
         this.status = value;
     }
 
@@ -39,12 +39,19 @@ export class Sender {
         return this.port
 
     }
+
     public get getStatus() {
         return this.status
     }
+
     public get getIp() {
         return this.ip
     }
+
+    public get getid(): string {
+        return this.id;
+    }
+
 
     protected controllerAck() {
 
@@ -83,7 +90,5 @@ export class Sender {
     emit(data: string) {
         this.client && this.client.write(data);
     }
-
-
 
 }

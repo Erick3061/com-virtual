@@ -19,8 +19,7 @@ export class Receivers {
         this.db = new sqlite.Database(path.join(dir, 'db.db'),
             (err) => {
                 if (err) {
-                    this.io.emit("sdgjh");
-                    console.log(`Fallo al crear la base de datos ${err}`);
+                    // this.io.emit("sdgjh");
                     return;
                 }
                 this.load();
@@ -42,35 +41,25 @@ export class Receivers {
                 try {
                     await this.crateReceiver();
                     return;
-                } catch (error) {
-                    console.log(error);
-                }
+                } catch (error) { }
             }
             await Promise.all(rows.map(async receiver => {
 
                 const { baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode, ack, attempt, delimiter, heartbeat, intervalAck, intervalHeart, status, typeSender, ip, port, senderStatus } = receiver;
                 const com = { baudRate, path, dataBits, highWaterMark, parity, stopBits, rtscts, rtsMode };
 
-
                 const rv = new Receiver(intervalHeart, this.db, heartbeat, ack, this.io, delimiter, com, attempt, intervalAck, status, typeSender);
 
                 try {
-                    if (status === Status.disconnect) {
-                        return true;
-                    }
-                    // TODO
-                    if (typeSender !== TypeSender.withOutServer) {
-                        rv.createSender(typeSender, ip, port, senderStatus);
-                    }
-
+                    if (status === Status.disconnect) return true;
+                    if (typeSender !== TypeSender.withOutServer) rv.createSender(typeSender, ip, port, senderStatus);
                     await rv.open();
-                    // TODO Verificar la existencia de la tabla para sus eventos
-                    // await this.createTableEventReceiver(rv.getId);
-                    await rv.init();
+                    rv.init();
                     return true;
                 } catch (error) {
-                    console.log(error);
-                } finally {
+
+                }
+                finally {
                     this.receivers = [...this.receivers, rv];
                 }
 
@@ -133,7 +122,6 @@ export class Receivers {
         if (!rv) {
             throw 'Receiver with ID not exist';
         }
-        //TODO
         await this.deleteDB(id);
         await this.deleteSender(id);
         await rv.close();
@@ -145,7 +133,6 @@ export class Receivers {
         return this.receivers.map(rv => rv.getInformation())
     }
 
-
     // *****************************
     async addSender(id: string, data: SenderPost) {
 
@@ -154,9 +141,7 @@ export class Receivers {
 
         data.ip = data.ip || "127.0.0.1";
         const revs = this.getAll();
-        if (revs.find(rv => rv.ip === data.ip && rv.port === data.port)) {
-            throw 'Sender ocupado';
-        }
+        if (revs.find(rv => rv.ip === data.ip && rv.port === data.port)) throw 'Sender ocupado';
 
         if (data.ip.includes("127.0.0.1")) {
             await this.saveSender(id, data, TypeSender.withServer);
@@ -168,7 +153,7 @@ export class Receivers {
 
     }
 
-    async stopSender(id: string, isDelete: boolean= false, deleteAll:boolean=false) {
+    async stopSender(id: string, isDelete: boolean = false, deleteAll: boolean = false) {
         const rv = this.receivers.find(rv => rv.getId === id);
         if (!rv) throw 'Receiver with ID not exist';
         await rv.stopSender(isDelete, deleteAll);
@@ -177,7 +162,7 @@ export class Receivers {
     async startSender(id: string) {
         const rv = this.receivers.find(rv => rv.getId === id);
         if (!rv) throw 'Receiver with ID not exist';
-        rv.startSender();
+        return rv.startSender();
     }
 
     async deleteSender(id: string) {
@@ -188,28 +173,6 @@ export class Receivers {
 
         rv.resetSender();
         await this.saveSender(id, {}, TypeSender.withOutServer);
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    stopSenderReciver(id: string) {
-
-        const rv = this.receivers.find(rv => rv.getId === id);
-        if (!rv) {
-            return 'Receiver with ID not exist';
-        }
 
     }
 

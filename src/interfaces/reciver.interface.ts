@@ -3,6 +3,7 @@ export enum Status {
     'connect' = 1,
     'disconnect' = 2,
     'error' = 3,
+    'warning' = 4,
 }
 
 export enum TypeSender {
@@ -38,12 +39,12 @@ export interface ReceiverPost {
     ack: string;
 }
 
-export interface SenderPost{
+export interface SenderPost {
     ip?: string;
     port?: number;
 }
 
-export interface ReceiverDB extends COM{
+export interface ReceiverDB extends COM {
     id: string;
     typeSender: TypeSender;
     ip: string;
