@@ -19,6 +19,8 @@ export class SendServer extends Sender {
         this.server = net.createServer((socket) => {
             if (this.getClient) return;
             this.setClient = socket;
+
+
             socket.on('close', () => this.setClient = null);
         });
 

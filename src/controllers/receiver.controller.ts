@@ -4,6 +4,7 @@ import { Server as SocketIoServer } from 'socket.io';
 import Receiver from '../model/receiver'
 
 import { Status, TypeSender, ReceiverDB, ReceiverPost, SenderPost, StatusSender } from '../interfaces/reciver.interface';
+import { log } from "console";
 
 
 export class Receivers {
@@ -19,6 +20,7 @@ export class Receivers {
         this.db = new sqlite.Database(path.join(dir, 'db.db'),
             (err) => {
                 if (err) {
+                    console.log(err);
                     // this.io.emit("sdgjh");
                     return;
                 }

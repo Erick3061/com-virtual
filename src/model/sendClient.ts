@@ -14,6 +14,7 @@ export default class sendClient extends Sender {
     }
 
     start() {
+        this.setStatus = StatusSender.connecting;
         this.setClient = new net.Socket();
 
         this.getClient!.on('end', async () => {
@@ -27,10 +28,10 @@ export default class sendClient extends Sender {
 
         this.getClient!.once('close', async () => {//estaba encendido y se desconecto y no esta conectado
             if (this.getStatus !== StatusSender.stop) {
-                if (this.getStatus !== StatusSender.connecting) {
-                    await this.updateState(StatusSender.connecting);
-                    this.io.emit(`sender-${this.getid}`, { msg: 'Error server offline - Reconnecting', status: this.getStatus });
-                }
+                // if (this.getStatus !== StatusSender.connecting) {
+                //     // await this.updateState(StatusSender.connecting);
+                // }
+                this.io.emit(`sender-${this.getid}`, { msg: 'Error server offline - Reconnecting', status: this.getStatus });
                 this.setStatus = StatusSender.connecting;
                 this.reconnect();
             }
