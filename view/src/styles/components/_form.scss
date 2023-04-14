@@ -1,0 +1,18 @@
+.container {
+
+    &_form {
+        background-color: aliceblue;
+        width: 30%;
+
+        .display {
+            display: flex;
+            justify-content: space-between;
+
+            div {
+                display: flex;
+                flex-direction: column;
+            }
+        }
+    }
+
+}
