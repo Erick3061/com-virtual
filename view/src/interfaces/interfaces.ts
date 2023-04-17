@@ -6,7 +6,7 @@ export interface COM {
     parity?: "none" | "even" | "odd" | "mark" | "space";
     rtscts?: boolean;
     rtsMode?: "handshake" | "enable" | "toggle";
-    stopBits?: 1 | 2 | 1.5;
+    stopBits?: 1 | 2 | 1.5 | number;
 }
 
 export interface ReceiverPost {

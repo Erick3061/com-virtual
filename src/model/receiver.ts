@@ -7,6 +7,7 @@ import sqlite from 'sqlite3';
 import { Server as SocketIoServer } from 'socket.io';
 
 import async from 'async';
+import { log } from "console";
 
 interface Qevent {
     id: number;
@@ -161,6 +162,7 @@ export default class Receiver extends Serial {
     open() {
         return new Promise<boolean>((resolve, reject) => {
             if (!this.getPort.isOpen) {
+
                 this.getPort.open((err) => {
                     if (err) {
                         this.status = Status.error;

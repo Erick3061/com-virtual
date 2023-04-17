@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { ResponseReceiver } from '../interfaces/interfaces';
 import { AppContext } from '../context/AppContext';
+import { FormAddReceiver, FormAddSender } from './Form';
 
 
 export const Receiver = (rv: ResponseReceiver) => {
@@ -31,7 +32,9 @@ export const DescReciver = () => {
 
     return (
         <div className='main'>
-            <div className='primaryData'>
+            {/* <FormAddReceiver /> */}
+            <FormAddSender id='1010101' />
+            {/* <div className='primaryData'>
                 {receiver ? <div>{JSON.stringify(receiver, null, 3)}</div> : null}
             </div>
             <div className='events'>
@@ -39,7 +42,7 @@ export const DescReciver = () => {
                 {
                     events.map((ev, idx) => <p key={idx}>{ev}</p>)
                 }
-            </div>
+            </div> */}
         </div>
     )
 }

@@ -4,7 +4,6 @@ import { Server as SocketIoServer } from 'socket.io';
 import Receiver from '../model/receiver'
 
 import { Status, TypeSender, ReceiverDB, ReceiverPost, SenderPost, StatusSender } from '../interfaces/reciver.interface';
-import { log } from "console";
 
 
 export class Receivers {
@@ -20,8 +19,6 @@ export class Receivers {
         this.db = new sqlite.Database(path.join(dir, 'db.db'),
             (err) => {
                 if (err) {
-                    console.log(err);
-                    // this.io.emit("sdgjh");
                     return;
                 }
                 this.load();
@@ -83,13 +80,18 @@ export class Receivers {
         const rv = new Receiver(intervalHeart, this.db, heartbeat, ack, this.io, delimiter, com, attempt, intervalAck);
 
         try {
+
             await rv.open();
             await this.save(rv.getId, data);
-            await rv.init();
+            rv.init();
             this.receivers = [...this.receivers, rv];
             return rv;
         } catch (error) {
-            await rv.close();
+
+            if (rv.getStatus === Status.connect) {
+                await rv.close();
+            }
+
             return `${error}`;
         }
     }

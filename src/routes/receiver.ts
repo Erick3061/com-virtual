@@ -4,6 +4,7 @@ import { plainToClass } from "class-transformer";
 import { ReceiverData, SenderData } from "../validation/receiver";
 import { ValidationError, validate } from "class-validator";
 import { Receivers } from '../controllers/receiver.controller';
+import { getReceivers } from '../../view/src/api/Request';
 
 
 export class ReceiverRouter {
@@ -23,8 +24,9 @@ export class ReceiverRouter {
             const receiver = plainToClass(ReceiverData, req.body);
             const errors = await validate(receiver);
 
+
             if (errors.length > 0) {
-                return res.json({
+                return res.status(400).json({
                     errors: errors.map(err => this.formatError(err))
                 })
             }
@@ -32,6 +34,7 @@ export class ReceiverRouter {
             const { ack, attempt, com, delimiter, heartbeat, intervalAck, intervalHeart } = receiver;
 
             try {
+
                 const rv = await this.recivers.newReciver({
                     ack,
                     attempt,
@@ -39,8 +42,9 @@ export class ReceiverRouter {
                     delimiter,
                     heartbeat, intervalAck, intervalHeart
                 });
+
                 if (typeof rv === "string") {
-                    return res.json({
+                    return res.status(500).json({
                         error: rv
                     })
                 }
@@ -50,7 +54,8 @@ export class ReceiverRouter {
                 })
 
             } catch (error) {
-                res.json({
+
+                res.status(500).json({
                     msg: `${error}`
                 })
             }
@@ -63,7 +68,7 @@ export class ReceiverRouter {
             })
         })
 
-        // * stop a receiver}
+        // * stop a receiver
         this.router.get('/stop/:id', async (req: Request, res: Response) => {
             const { id } = req.params;
             try {
@@ -72,7 +77,7 @@ export class ReceiverRouter {
                     msg: 'ok'
                 })
             } catch (error) {
-                res.json({
+                res.status(500).json({
                     msg: error
                 })
             }
@@ -87,7 +92,7 @@ export class ReceiverRouter {
                     msg: 'ok'
                 })
             } catch (error) {
-                res.json({
+                res.status(500).json({
                     msg: error
                 })
             }

@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUrl, ValidateNested } from "class-validator";
+import { IsBoolean, IsIP, IsIn, IsInt, IsOptional, IsString, IsUrl, Min, ValidateNested } from "class-validator";
 
-export class ReceiverData{
+export class ReceiverData {
 
     @ValidateNested()
     @Type(() => COM)
@@ -9,32 +9,33 @@ export class ReceiverData{
 
     @IsString()
     public ack!: string;
-    
+
     @IsInt()
     public attempt!: number;
-    
+
     @IsString()
     public delimiter!: string;
-    
+
     @IsString()
     public heartbeat!: string;
-    
+
     @IsInt()
     public intervalAck!: number;
-    
+
     @IsInt()
+    @Min(1)
     public intervalHeart!: number;
 
 }
 
-class COM{
+class COM {
     @IsInt()
     public baudRate!: number;
 
     @IsString()
     public path!: string;
 
-    @IsIn([5,6,7,8])
+    @IsIn([5, 6, 7, 8])
     @IsOptional()
     public databits?: 5 | 6 | 7 | 8;
 
@@ -54,14 +55,15 @@ class COM{
     @IsOptional()
     public rtsMode?: "handshake" | "enable" | "toggle";
 
-    @IsIn([1,2,1.5])
+    @IsIn([1, 2, 1.5])
+    @IsOptional()
     public stopBits?: 1 | 2 | 1.5;
 
 
 }
 
-export class SenderData{
-    
+export class SenderData {
+
     @IsOptional()
     @IsUrl()
     public ip!: string;
